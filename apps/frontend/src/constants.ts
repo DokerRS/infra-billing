@@ -32,6 +32,7 @@ const PROVIDER_KINDS: ProviderKind[] = [
   'tubehosting',
   'gcore',
   'nodehost',
+  'aws',
   '1cent',
   'ovh',
   'procloud',

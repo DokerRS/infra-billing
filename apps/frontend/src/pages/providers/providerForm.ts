@@ -74,6 +74,7 @@ export const DEFAULT_LOGIN_URLS: Record<string, string> = {
   hostvds: 'https://hostvds.com/control',
   gcore: 'https://portal.gcore.com',
   nodehost: 'https://nodehost.cc',
+  aws: 'https://console.aws.amazon.com/costmanagement',
   '1cent': 'https://bill.1cent.host',
   ovh: 'https://api.eu.ovhcloud.com/console/',
   procloud: 'https://my.procloud.ru',
@@ -214,6 +215,8 @@ export function validateAccountCredentials(
     return t('providers.err.porkbunCreds');
   if (requireCreds && kind === 'spaceship' && !(v.token && v.secretKey))
     return t('providers.err.spaceshipCreds');
+  if (requireCreds && kind === 'aws' && !(v.token && v.secretKey))
+    return t('providers.err.awsCreds');
   if (requireCreds && kind === 'linode' && !v.token) return t('providers.err.linodeToken');
   if (requireCreds && kind === 'aeza' && !v.token) return t('providers.err.aezaToken');
   if (kind === 'hostkey') {

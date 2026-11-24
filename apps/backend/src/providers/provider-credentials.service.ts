@@ -137,6 +137,9 @@ export class ProviderCredentialsService {
     if (kind === 'spaceship') {
       return { hasToken: Boolean(c.apiKey), hasSecretKey: Boolean(c.apiSecret) };
     }
+    if (kind === 'aws') {
+      return { hasToken: Boolean(c.accessKeyId), hasSecretKey: Boolean(c.secretAccessKey) };
+    }
     if (kind === 'ovh') {
       return {
         hasToken: Boolean(c.applicationKey),
@@ -238,6 +241,12 @@ export class ProviderCredentialsService {
       const out: ProviderCredentialsReveal = {};
       if (c.apiKey) out.token = c.apiKey;
       if (c.apiSecret) out.secretKey = c.apiSecret;
+      return out;
+    }
+    if (kind === 'aws') {
+      const out: ProviderCredentialsReveal = {};
+      if (c.accessKeyId) out.token = c.accessKeyId;
+      if (c.secretAccessKey) out.secretKey = c.secretAccessKey;
       return out;
     }
     if (kind === 'ovh') {
@@ -570,6 +579,16 @@ export class ProviderCredentialsService {
         throw new BadRequestException('Provide both the Spaceship API key and secret');
       }
       return this.crypto.encrypt(JSON.stringify({ apiKey, apiSecret }));
+    }
+    if (kind === 'aws') {
+      if (!dto.token && !dto.secretKey) return null;
+      const base = this.decodeCredentials(existingEnc);
+      const accessKeyId = dto.token ?? base.accessKeyId;
+      const secretAccessKey = dto.secretKey ?? base.secretAccessKey;
+      if (!accessKeyId || !secretAccessKey) {
+        throw new BadRequestException('Provide both the AWS access key ID and secret access key');
+      }
+      return this.crypto.encrypt(JSON.stringify({ accessKeyId, secretAccessKey }));
     }
     if (kind === 'ovh') {
       // JSON { applicationKey, applicationSecret, consumerKey, baseUrl? } — the trio from
