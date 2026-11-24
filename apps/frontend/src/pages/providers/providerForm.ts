@@ -71,6 +71,7 @@ export const DEFAULT_LOGIN_URLS: Record<string, string> = {
   hostvds: 'https://hostvds.com/control',
   gcore: 'https://portal.gcore.com',
   nodehost: 'https://nodehost.cc',
+  '1cent': 'https://bill.1cent.host',
 };
 
 export const EMPTY_IDENTITY: IdentityFormValues = {
@@ -212,6 +213,7 @@ export function validateAccountCredentials(
   if (requireCreds && kind === 'datapacket' && !v.token) return t('providers.err.datapacketToken');
   if (requireCreds && kind === 'gcore' && !v.token) return t('providers.err.gcoreToken');
   if (requireCreds && kind === 'nodehost' && !v.token) return t('providers.err.nodehostToken');
+  if (requireCreds && kind === '1cent' && !v.token) return t('providers.err.cent1Token');
   return null;
 }
 
