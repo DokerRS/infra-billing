@@ -78,6 +78,17 @@ export const providers = {
       totpSecret: 'TOTP secret (if OTP 2FA is enabled)',
       totpSecretDesc:
         'Base32 secret from the authenticator app — the sync will generate the code itself',
+      apiBaseUrlDescBillmgrCookie: 'The panel address from your browser, with /billmgr at the end',
+      sessionCookie: 'Session cookie',
+      sessionCookieDesc:
+        'Copy the whole Cookie value of the panel tab in DevTools (Application → Cookies, or a request ' +
+        'header). It contains billmgrses… and expires — the sync tells you when it needs replacing',
+      userAgent: 'User-Agent',
+      userAgentDesc:
+        'The browser User-Agent the cookie was copied from — the panel rejects a request from another client',
+      loginOptionalDesc: 'Needed only to renew the session automatically when the cookie expires',
+      passwordOptionalDesc:
+        'With the login, lets the sync re-authenticate instead of asking for a new cookie',
       apiToken: 'API token',
       apiTokenDesc4vps: '4VPS personal account → API section',
       apiTokenDescNetlen: 'Netlen panel → API. Important: whitelist the server IP for the key.',
@@ -215,6 +226,7 @@ export const providers = {
       nodehostToken: 'Enter the NodeHost API key',
       cent1Token: 'Enter the 1Cent API key',
       ovhCreds: 'Enter the OVH application key, application secret and consumer key',
+      billmgrCookieCreds: 'Enter the panel URL and the session cookie',
       yandexKey: 'Paste the Yandex Cloud service account authorized key (JSON)',
     },
     netcup: {
@@ -373,6 +385,17 @@ export const providers = {
       totpSecret: 'TOTP-секрет (если включена 2FA по OTP)',
       totpSecretDesc:
         'Base32-секрет из приложения-аутентификатора — синк будет сам генерировать код',
+      apiBaseUrlDescBillmgrCookie: 'Адрес панели из браузера, с /billmgr на конце',
+      sessionCookie: 'Cookie сессии',
+      sessionCookieDesc:
+        'Скопируйте целиком значение Cookie вкладки панели в DevTools (Application → Cookies или ' +
+        'заголовок запроса). Там есть billmgrses…, и оно протухает — синк сам скажет, когда заменить',
+      userAgent: 'User-Agent',
+      userAgentDesc:
+        'User-Agent браузера, из которого скопирована кука — панель отклоняет запрос от другого клиента',
+      loginOptionalDesc: 'Нужен только чтобы продлевать сессию автоматически, когда кука протухнет',
+      passwordOptionalDesc:
+        'Вместе с логином позволяет синку заново авторизоваться вместо запроса новой куки',
       apiToken: 'API-токен',
       apiTokenDesc4vps: 'Личный кабинет 4VPS → раздел API',
       apiTokenDescNetlen: 'Панель Netlen → API. Важно: добавьте IP сервера в whitelist ключа.',
@@ -513,6 +536,7 @@ export const providers = {
       nodehostToken: 'Укажите API-ключ NodeHost',
       cent1Token: 'Укажите API-ключ 1Cent',
       ovhCreds: 'Укажите application key, application secret и consumer key OVH',
+      billmgrCookieCreds: 'Укажите адрес панели и cookie сессии',
       yandexKey: 'Вставьте авторизованный ключ сервисного аккаунта Yandex Cloud (JSON)',
     },
     netcup: {

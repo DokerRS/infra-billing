@@ -425,6 +425,85 @@ export function ProviderCredentialFields({
     );
   }
 
+  if (kind === 'billmgr-cookie') {
+    return (
+      <>
+        <Field
+          id="cred-base-url"
+          label={t('providers.field.apiBaseUrl')}
+          description={t('providers.field.apiBaseUrlDescBillmgrCookie')}
+        >
+          <Input
+            id="cred-base-url"
+            placeholder="https://my.akenai.host/billmgr"
+            {...form.register('baseUrl')}
+          />
+        </Field>
+        <Field
+          id="cred-cookie"
+          label={t('providers.field.sessionCookie')}
+          description={t('providers.field.sessionCookieDesc')}
+        >
+          <SecretFormField
+            form={form}
+            name="cookie"
+            id="cred-cookie"
+            hasStored={storedSecrets?.hasCookie}
+            reveal={reveal}
+            multiline
+            placeholder="billmgrlang5=dragon:ru; billmgrses5=46e7bfddd1ce36811b297b06"
+          />
+        </Field>
+        <Field
+          id="cred-user-agent"
+          label={t('providers.field.userAgent')}
+          description={t('providers.field.userAgentDesc')}
+        >
+          <Input
+            id="cred-user-agent"
+            placeholder="Mozilla/5.0 (Windows NT 10.0; Win64; x64) …"
+            {...form.register('userAgent')}
+          />
+        </Field>
+        <Field
+          id="cred-username"
+          label={t('providers.field.loginEmail')}
+          description={t('providers.field.loginOptionalDesc')}
+        >
+          <Input id="cred-username" {...form.register('username')} />
+        </Field>
+        <Field
+          id="cred-password"
+          label={t('providers.field.password')}
+          description={t('providers.field.passwordOptionalDesc')}
+        >
+          <SecretFormField
+            form={form}
+            name="password"
+            id="cred-password"
+            hasStored={storedSecrets?.hasPassword}
+            reveal={reveal}
+            placeholder={storedSecrets?.hasPassword ? undefined : optionalPh}
+          />
+        </Field>
+        <Field
+          id="cred-totp"
+          label={t('providers.field.totpSecret')}
+          description={t('providers.field.totpSecretDesc')}
+        >
+          <SecretFormField
+            form={form}
+            name="totpSecret"
+            id="cred-totp"
+            hasStored={storedSecrets?.hasTotpSecret}
+            reveal={reveal}
+            placeholder={storedSecrets?.hasTotpSecret ? undefined : optionalPh}
+          />
+        </Field>
+      </>
+    );
+  }
+
   if (kind === '4vps') {
     return (
       <>

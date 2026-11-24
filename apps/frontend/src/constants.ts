@@ -9,6 +9,7 @@ const PROVIDER_KINDS: ProviderKind[] = [
   'netcup',
   'hostbill',
   'billmgr',
+  'billmgr-cookie',
   'selectel',
   '4vps',
   'netlen',

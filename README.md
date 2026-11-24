@@ -18,7 +18,8 @@
 - **Провайдеры с API:** Timeweb Cloud, Hetzner Cloud, Hostkey (InvAPI), netcup, HostBill,
   ISPsystem BILLmanager, Selectel, 4VPS.SU, Netlen, Beget Cloud, Porkbun, Spaceship, Vultr,
   Linode, Aeza, VDSina, Cloudflare, StormWall, NetAngels, Yandex Cloud, Double Servers, OpenRouter,
-  HostUp, HostVDS / CloudCore, DataPacket, Tube-Hosting, Gcore, NodeHost, 1Cent, OVH. Плюс **Manual** — провайдеры
+  HostUp, HostVDS / CloudCore, DataPacket, Tube-Hosting, Gcore, NodeHost, 1Cent, OVH, плюс
+  **ISP BILLmanager (cookie)** — вход по браузерной куке. Плюс **Manual** — провайдеры
   без API ведутся руками.
 - **Автосинк** (по расписанию + кнопкой): баланс + валюта аккаунта, список серверов/услуг, даты
   следующих списаний; история баланса по дням (снапшоты).
@@ -305,6 +306,13 @@ curl -H "Authorization: Bearer ib_…" https://infra-billing/api/providers
   у FirstVDS это «Доступ к API» в настройках биллинга — иначе синк упадёт с ошибкой
   `forbidden_auth_method`. 2FA в этом режиме не работает (нет сессии для подтверждения кода) —
   отключите её у такого хостера.
+ - **ISP BILLmanager (cookie)** — то же самое, когда API-пользователя нет или вход в API закрыт:
+  base URL (`https://.../billmgr`) + `Cookie` из уже открытой панели (DevTools → Application →
+  Cookies, целиком, там должен быть `billmgrses…`) + User-Agent того браузера, из которого кука
+  скопирована (панель сверяет клиента). Сервисы, баланс и реестр платежей — как у обычного
+  BILLmanager. Кука живёт до таймаута простоя/перелогина: без логина и пароля синк попросит
+  вставить новую; с ними — сам продлит сессию через `func=auth` (+ подтверждение OTP по
+  TOTP-секрету).
 - **Selectel** — номер аккаунта + сервисный пользователь IAM (имя + пароль) с ролью
   «Наблюдатель» (`reader`): она даёт баланс, потребление и список бакетов (роли «Биллинг» для
   бакетов мало); опц. имя проекта Облачной платформы — для облачных серверов, роутеров и

@@ -39,12 +39,14 @@ export const providerAccountSchema = z.object({
   projectName: z.string().describe('Cloud project name').nullable().optional(),
   panelId: z.string().describe('Billing panel id').nullable().optional(),
   email: z.string().describe('Website sign-in email').nullable().optional(),
+  userAgent: z.string().describe('Browser User-Agent').nullable().optional(),
   hasToken: z.boolean().describe('Stored API token / key present').optional(),
   hasPassword: z.boolean().describe('Stored account password present').optional(),
   hasTotpSecret: z.boolean().describe('Stored TOTP secret present').optional(),
   hasApiPassword: z.boolean().describe('Stored API password present').optional(),
   hasSecretKey: z.boolean().describe('Stored secret API key present').optional(),
   hasWebPassword: z.boolean().describe('Stored website sign-in password present').optional(),
+  hasCookie: z.boolean().describe('Stored browser session cookie present').optional(),
   useCatalogNames: z.boolean().describe('OpenRouter: use catalog display names').optional(),
   createdAt: isoDateSchema.describe('Creation time'),
   updatedAt: isoDateSchema.describe('Last update time'),
@@ -80,6 +82,7 @@ export const providerCredentialsRevealSchema = z.object({
   apiPassword: z.string().optional(),
   secretKey: z.string().optional(),
   webPassword: z.string().optional(),
+  cookie: z.string().optional(),
 });
 export type ProviderCredentialsReveal = z.infer<typeof providerCredentialsRevealSchema>;
 
@@ -113,6 +116,10 @@ const credentialFields = {
   email: z.string().email().describe('HostVDS website sign-in email').optional(),
   webPassword: z.string().min(1).describe('HostVDS website sign-in password').optional(),
   useCatalogNames: z.boolean().describe('OpenRouter: use catalog display names').optional(),
+  // BILLmanager cookie auth: the browser's session cookie (kept verbatim, `billmgrses5` carries the
+  // session id) plus the User-Agent it was copied from — the panel rejects a mismatched client.
+  cookie: z.string().min(1).describe('Browser session cookie').optional(),
+  userAgent: z.string().min(1).describe('Browser User-Agent').optional(),
 };
 
 const accountLabelSchema = z.string().trim().min(1).max(64);

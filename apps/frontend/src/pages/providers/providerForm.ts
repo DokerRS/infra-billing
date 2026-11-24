@@ -28,6 +28,8 @@ export interface AccountFormValues {
   secretKey: string;
   email: string;
   webPassword: string;
+  cookie: string;
+  userAgent: string;
 }
 
 /** Which stored secrets an account already has (drives the masked inputs and reveal buttons). */
@@ -39,6 +41,7 @@ export type StoredSecretFlags = Pick<
   | 'hasApiPassword'
   | 'hasSecretKey'
   | 'hasWebPassword'
+  | 'hasCookie'
 >;
 
 // Well-known cabinet URLs per connector kind, pre-filled into loginUrl on create so the owner
@@ -99,6 +102,8 @@ export const EMPTY_ACCOUNT: AccountFormValues = {
   secretKey: '',
   email: '',
   webPassword: '',
+  cookie: '',
+  userAgent: '',
 };
 
 export function identityFormFrom(p: Provider): IdentityFormValues {
@@ -124,6 +129,7 @@ export function accountFormFrom(a: ProviderAccount): AccountFormValues {
     projectName: a.projectName ?? '',
     panelId: a.panelId ?? '',
     email: a.email ?? '',
+    userAgent: a.userAgent ?? '',
   };
 }
 
@@ -229,6 +235,8 @@ export function validateAccountCredentials(
   if (requireCreds && kind === '1cent' && !v.token) return t('providers.err.cent1Token');
   if (requireCreds && kind === 'ovh' && !(v.token && v.secretKey && v.password))
     return t('providers.err.ovhCreds');
+  if (requireCreds && kind === 'billmgr-cookie' && !(v.baseUrl && v.cookie))
+    return t('providers.err.billmgrCookieCreds');
   return null;
 }
 
@@ -250,6 +258,8 @@ export function buildCredentials(kind: string, v: AccountFormValues) {
     secretKey: v.secretKey || undefined,
     email: v.email || undefined,
     webPassword: v.webPassword || undefined,
+    cookie: v.cookie || undefined,
+    userAgent: v.userAgent || undefined,
   };
   if (kind === 'openrouter') {
     return {
