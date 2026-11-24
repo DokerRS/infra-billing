@@ -51,10 +51,10 @@ jobs:
           make_latest: true
           body: |
             Docker image:
-            - `ghcr.io/${{ github.repository }}:${{ github.ref_name }}`
-            - `ghcr.io/${{ github.repository }}:latest`
-            - `docker.io/${{ vars.DOCKERHUB_IMAGE || github.repository }}:${{ github.ref_name }}`
-            - `docker.io/${{ vars.DOCKERHUB_IMAGE || github.repository }}:latest`
+            - `ghcr.io/${{ toLower(github.repository) }}:${{ github.ref_name }}`
+            - `ghcr.io/${{ toLower(github.repository) }}:latest`
+            - `docker.io/${{ toLower(vars.DOCKERHUB_IMAGE || github.repository) }}:${{ github.ref_name }}`
+            - `docker.io/${{ toLower(vars.DOCKERHUB_IMAGE || github.repository) }}:latest`
 
   send-finish-tg-msg:
     name: Send TG message

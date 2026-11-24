@@ -22,8 +22,9 @@ on:
         default: ''
 
 env:
-  GHCR_IMAGE: ghcr.io/${{ github.repository }}
-  DOCKERHUB_IMAGE: docker.io/${{ vars.DOCKERHUB_IMAGE || github.repository }}
+  # Registry repository names must be lowercase, but github.repository keeps the owner's casing.
+  GHCR_IMAGE: ghcr.io/${{ toLower(github.repository) }}
+  DOCKERHUB_IMAGE: docker.io/${{ toLower(vars.DOCKERHUB_IMAGE || github.repository) }}
   # GHCR reads a multi-arch image's description from the index annotations, not the image label.
   # Keep in sync with the Dockerfile label.
   IMAGE_DESCRIPTION: >-
