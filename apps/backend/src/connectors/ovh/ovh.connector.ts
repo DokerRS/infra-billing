@@ -104,12 +104,21 @@ export class OvhConnector implements Connector {
 
   private async now(signal: AbortSignal): Promise<number> {
     if (this.clockDelta === null) {
-      // /auth/time is unsigned and answers with a bare unix timestamp.
-      const base = this.endpoint.replace(/\/1\.0$/, '');
-      const { data } = await this.http.get(`${base}/auth/time`, {
-        signal,
-        transformResponse: [(v) => v],
-      });
+      // /auth/time is unsigned and answers with a bare unix timestamp. It lives under the same
+      // version prefix as everything else, so the endpoint is used verbatim.
+      let data: unknown;
+      try {
+        ({ data } = await this.http.get(`${this.endpoint}/auth/time`, {
+          signal,
+          transformResponse: [(v) => v],
+        }));
+      } catch (e) {
+        throw new Error(
+          axios.isAxiosError(e)
+            ? `OVH: cannot read the API clock (${e.response ? `HTTP ${e.response.status}` : e.code || e.message})`
+            : (e as Error).message,
+        );
+      }
       const server = Number(String(data).trim());
       if (!Number.isFinite(server)) throw new Error('OVH: /auth/time returned no clock');
       this.clockDelta = Math.floor(Date.now() / 1000) - server;
