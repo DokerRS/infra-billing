@@ -45,10 +45,10 @@ export const settings = {
       chatIdPlaceholder: '-1001234567890',
       topicId: 'Topic ID (optional)',
       topicIdDescription: 'Forum topic ID, if sending to a topic',
-      proxyUrl: 'SOCKS proxy (optional)',
+      proxyUrl: 'Proxy (optional)',
       proxyUrlDescription:
-        'SOCKS5 proxy for delivering notifications. Prefer socks5h:// — DNS is resolved by the proxy (socks5:// sends a raw IP, some proxies reject that). Empty — connect directly',
-      proxyUrlPlaceholder: 'socks5h://user:pass@host:1080',
+        'HTTP(S) or SOCKS5 proxy for delivering notifications. Prefer socks5h:// — DNS is resolved by the proxy (socks5:// sends a raw IP, some proxies reject that). Empty — connect directly',
+      proxyUrlPlaceholder: 'http://user:pass@host:3128 or socks5h://user:pass@host:1080',
       upcomingBillingDays: 'Warn about billing within (days)',
       quietHours: 'Quiet hours',
       quietHoursDescription:
@@ -130,10 +130,10 @@ export const settings = {
       chatIdPlaceholder: '-1001234567890',
       topicId: 'Topic ID (необязательно)',
       topicIdDescription: 'ID топика форума, если шлём в топик',
-      proxyUrl: 'SOCKS-прокси (необязательно)',
+      proxyUrl: 'Прокси (необязательно)',
       proxyUrlDescription:
-        'SOCKS5-прокси для доставки уведомлений. Лучше socks5h:// — DNS резолвит прокси (socks5:// шлёт голый IP, часть прокси такое отбрасывает). Пусто — напрямую',
-      proxyUrlPlaceholder: 'socks5h://user:pass@host:1080',
+        'HTTP(S)- или SOCKS5-прокси для доставки уведомлений. Для SOCKS лучше socks5h:// — DNS резолвит прокси (socks5:// шлёт голый IP, часть прокси такое отбрасывает). Пусто — напрямую',
+      proxyUrlPlaceholder: 'http://user:pass@host:3128 или socks5h://user:pass@host:1080',
       upcomingBillingDays: 'Предупреждать о списании за (дней)',
       quietHours: 'Тихие часы',
       quietHoursDescription:

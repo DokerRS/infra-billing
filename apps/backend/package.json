@@ -39,6 +39,7 @@
     "dayjs": "^1.11.21",
     "decimal.js": "^10.6.0",
     "grammy": "^1.44.0",
+    "https-proxy-agent": "^7.0.6",
     "jsonwebtoken": "^9.0.3",
     "nest-winston": "^1.10.2",
     "nestjs-zod": "^4.3.1",
