@@ -18,12 +18,12 @@
 - **Провайдеры с API:** Timeweb Cloud, Hetzner Cloud, Hostkey (InvAPI), netcup, HostBill,
   ISPsystem BILLmanager, Selectel, 4VPS.SU, Netlen, Beget Cloud, Porkbun, Spaceship, Vultr,
   Linode, Aeza, VDSina, Cloudflare, StormWall, NetAngels, Yandex Cloud, Double Servers, OpenRouter,
-  HostUp, HostVDS / CloudCore, DataPacket, Tube-Hosting, Gcore, NodeHost. Плюс **Manual** — провайдеры
+  HostUp, HostVDS / CloudCore, DataPacket, Tube-Hosting, Gcore, NodeHost, 1Cent. Плюс **Manual** — провайдеры
   без API ведутся руками.
 - **Автосинк** (по расписанию + кнопкой): баланс + валюта аккаунта, список серверов/услуг, даты
   следующих списаний; история баланса по дням (снапшоты).
 - **Импорт платежей** там, где API отдаёт реестр: пополнения и списания (BILLmanager, Netlen,
-  Vultr, Aeza, VDSina, Double Servers, HostVDS, Tube-Hosting, Gcore, NodeHost), пополнения и счета
+  Vultr, Aeza, VDSina, Double Servers, HostVDS, Tube-Hosting, Gcore, NodeHost, 1Cent), пополнения и счета
   (Linode), оплаченные счета (HostBill, DataPacket), платежи (HostUp), потребление (Selectel,
   Yandex Cloud, OpenRouter), история биллинга (Cloudflare, best-effort). Ручные платежи — в журнале.
 - **Аналитика:** месячные/годовые расходы, разрезы по провайдеру / стране / типу / валюте, прогноз
@@ -415,6 +415,15 @@ curl -H "Authorization: Bearer ib_…" https://infra-billing/api/providers
   сопоставляется по типу, валюте, времени и сумме. Списание без `serverId` относится к аккаунту;
   если ID появится позже, синк привяжет тот же платёж к серверу. Неоднозначные совпадения
   останавливают импорт платежей этого синка с предупреждением в логе.
+- **1Cent** — API-ключ `cx_…` (bill.1cent.host → профиль → вкладка «API»), заголовок
+  `Authorization: Bearer`. Баланс и валюта — из `/account` (RUB). Услуги — из `/services` (без
+  пагинации): цена — `renewalPrice`, а для автопродления — сумма ближайшего списания; дата списания —
+  `nextCharge.at`, при выключенном автопродлении — `expiresAt`; цикл — по `periodMonths`; страна — по
+  коду датацентра (`nl`, `de`, `se`, `fi-hicpu`, `ru`). Импортируются транзакции
+  `/account/transactions` (по 100 на страницу): пополнения и списания, списания привязаны к услуге.
+  Возвраты (`CREDIT`) пропускаются — это возврат уже учтённых денег. Раздел `/payments` не
+  используется: он отдаёт только 20 последних внешних платежей без пагинации. Ограничение API —
+  120 запросов в минуту.
 - **Manual** — без API, всё вводится руками.
 
 ## Telegram-уведомления

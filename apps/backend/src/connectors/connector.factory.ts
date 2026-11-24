@@ -7,6 +7,7 @@ import { BegetConnector } from './beget/beget.connector';
 import type { BegetCredentials } from './beget/beget.types';
 import { BillmgrConnector } from './billmgr/billmgr.connector';
 import type { BillmgrCredentials } from './billmgr/billmgr.types';
+import { Cent1Connector } from './1cent/1cent.connector';
 import { CloudflareConnector } from './cloudflare/cloudflare.connector';
 import type { CloudflareCredentials } from './cloudflare/cloudflare.types';
 import { Connector } from './connector.interface';
@@ -134,6 +135,9 @@ export class ConnectorFactory {
       case 'nodehost':
         // NodeHost secret is the raw API key (single string, sent as the Authorization Bearer header).
         return new NodehostConnector(token);
+      case '1cent':
+        // 1Cent secret is the raw API key (single string, sent as the Authorization Bearer header).
+        return new Cent1Connector(token);
       default:
         throw new Error(`Connector for kind="${kind}" is not supported`);
     }

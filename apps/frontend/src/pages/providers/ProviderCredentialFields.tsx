@@ -683,6 +683,25 @@ export function ProviderCredentialFields({
     );
   }
 
+  if (kind === '1cent') {
+    return (
+      <Field
+        id="cred-token"
+        label={t('providers.field.apiToken')}
+        description={t('providers.field.apiTokenDescCent1')}
+        link="https://bill.1cent.host/dashboard/profile?tab=api"
+      >
+        <SecretFormField
+          form={form}
+          name="token"
+          id="cred-token"
+          hasStored={storedSecrets?.hasToken}
+          reveal={reveal}
+        />
+      </Field>
+    );
+  }
+
   if (kind === 'openrouter') {
     return (
       <>
