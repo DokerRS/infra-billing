@@ -54,6 +54,11 @@ const LEDGER_WINDOW_DAYS = 400;
 /** OVH hands out prepaid accounts; the first two are enough (a reseller's are noise). */
 const MAX_BALANCE_ACCOUNTS = 2;
 
+/** What a 403 tells the operator to do about it. */
+const OVH_RIGHTS_HINT =
+  '; the consumer key needs GET access to /me, /me/ovhAccount, /me/ovhAccount/*/movements, ' +
+  '/me/bill, /me/bill/*, /services, /services/*';
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -166,10 +171,14 @@ export class OvhConnector implements Connector {
         const body = ovhErrorSchema.safeParse(e.response?.data);
         const queryId = e.response?.headers?.['x-ovh-queryid'];
         const message = body.success ? body.data.message : undefined;
+        // A 403 is always about the consumer key's rights, and the caller cannot tell which path
+        // was refused without the path — name it, otherwise the fix is guesswork.
+        const hint =
+          status === 403 ? ` — grant GET ${path} to the consumer key${OVH_RIGHTS_HINT}` : '';
         throw new Error(
-          `OVH: ${message || e.code || 'request failed'} [HTTP ${status ?? '?'}]${
+          `OVH: ${message || e.code || 'request failed'} [HTTP ${status ?? '?'}] GET ${path}${
             queryId ? ` (queryId ${queryId})` : ''
-          }`,
+          }${hint}`,
         );
       }
       throw e;
