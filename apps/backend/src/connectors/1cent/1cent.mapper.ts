@@ -92,10 +92,7 @@ export function mapCent1Service(s: Cent1Service, currency: string): ServiceData 
  * `CREDIT` rows are refunds of already-counted money (unused days of a removed add-on), and the
  * ledger model has no representation for them (amounts are unsigned), so they are left out.
  */
-export function mapCent1Transaction(
-  t: Cent1Transaction,
-  currency: string,
-): PaymentData | null {
+export function mapCent1Transaction(t: Cent1Transaction, currency: string): PaymentData | null {
   if (t.type === 'CREDIT') return null;
   const date = parseDate(t.createdAt);
   if (!date) return null;
