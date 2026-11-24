@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SettingsRepository } from '@repositories/settings/settings.repository';
 import { Api } from 'grammy';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import { SocksProxyAgent } from 'socks-proxy-agent';
+import type { Agent } from 'node:http';
 import { CryptoService } from '../crypto/crypto.service';
 
 interface TelegramConfig {
@@ -9,6 +11,20 @@ interface TelegramConfig {
   chatId: string;
   topicId: string;
   proxyUrl: string;
+}
+
+/**
+ * The agent for a proxy URL, or null when it cannot be parsed. grammY talks through node-fetch on
+ * Node, which honours `agent` for both http: and https: targets, so one agent per scheme is all
+ * that is needed. An http: proxy is used as a plain forward proxy for http targets and via
+ * CONNECT for https ones, which is what api.telegram.org (https) requires.
+ */
+function proxyAgent(url: string): Agent | null {
+  try {
+    return /^https?:\/\//i.test(url) ? new HttpsProxyAgent(url) : new SocksProxyAgent(url);
+  } catch {
+    return null;
+  }
 }
 
 // Outbound-only: grammY `Api`, no Bot/polling/webhook. Config (token AES-GCM encrypted) read from
@@ -66,10 +82,16 @@ export class TelegramService {
     if (cfg.topicId) options.message_thread_id = Number(cfg.topicId);
 
     try {
-      const api = cfg.proxyUrl
+      const agent = cfg.proxyUrl ? proxyAgent(cfg.proxyUrl) : null;
+      if (cfg.proxyUrl && !agent) {
+        this.logger.error(
+          `Telegram proxy URL could not be parsed, sending directly instead: ${cfg.proxyUrl}`,
+        );
+      }
+      const api = agent
         ? new Api(cfg.token, {
             timeoutSeconds: 10,
-            baseFetchConfig: { agent: new SocksProxyAgent(cfg.proxyUrl), compress: true },
+            baseFetchConfig: { agent, compress: true },
           })
         : new Api(cfg.token, { timeoutSeconds: 10 });
       await api.sendMessage(cfg.chatId, html, options);

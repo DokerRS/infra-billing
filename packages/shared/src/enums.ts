@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-/** Connector kinds. API-backed: timeweb, hetzner, hostkey, netcup, hostbill, billmgr, selectel, 4vps, netlen, beget, porkbun, spaceship, vultr, linode, aeza, vdsina, cloudflare, stormwall, netangels, yandex, doubleservers, openrouter, hostup, hostvds, datapacket, tubehosting, gcore, nodehost, 1cent, ovh. manual = no sync. */
+/** Connector kinds. API-backed: timeweb, hetzner, hostkey, netcup, hostbill, billmgr, billmgr-cookie, selectel, 4vps, netlen, beget, porkbun, spaceship, vultr, linode, aeza, vdsina, cloudflare, stormwall, netangels, yandex, doubleservers, openrouter, hostup, hostvds, datapacket, tubehosting, gcore, nodehost, 1cent, ovh. manual = no sync. */
 export const providerKindSchema = z.enum([
   'timeweb',
   'hetzner',
@@ -8,6 +8,7 @@ export const providerKindSchema = z.enum([
   'netcup',
   'hostbill',
   'billmgr',
+  'billmgr-cookie',
   'selectel',
   '4vps',
   'netlen',
@@ -44,6 +45,7 @@ export const PROVIDER_KINDS = providerKindSchema.options;
 export const PROVIDER_KINDS_WITH_PAYMENT_IMPORT = [
   'hostbill',
   'billmgr',
+  'billmgr-cookie',
   'selectel',
   'netlen',
   'netangels',

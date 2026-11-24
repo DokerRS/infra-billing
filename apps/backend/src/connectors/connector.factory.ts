@@ -7,6 +7,8 @@ import { BegetConnector } from './beget/beget.connector';
 import type { BegetCredentials } from './beget/beget.types';
 import { BillmgrConnector } from './billmgr/billmgr.connector';
 import type { BillmgrCredentials } from './billmgr/billmgr.types';
+import { BillmgrCookieConnector } from './billmgr-cookie/billmgr-cookie.connector';
+import type { BillmgrCookieCredentials } from './billmgr-cookie/billmgr-cookie.types';
 import { Cent1Connector } from './1cent/1cent.connector';
 import { CloudflareConnector } from './cloudflare/cloudflare.connector';
 import type { CloudflareCredentials } from './cloudflare/cloudflare.types';
@@ -73,6 +75,10 @@ export class ConnectorFactory {
       case 'billmgr':
         // BILLmanager secret is JSON: { baseUrl, username, password }.
         return new BillmgrConnector(JSON.parse(token) as BillmgrCredentials);
+      case 'billmgr-cookie':
+        // Cookie BILLmanager secret is JSON: { baseUrl, cookie, userAgent?, username?, password?,
+        // totpSecret? } — the session cookie + User-Agent copied from a logged-in panel tab.
+        return new BillmgrCookieConnector(JSON.parse(token) as BillmgrCookieCredentials);
       case 'selectel':
         // Selectel secret is JSON: { accountId, username, password } (Keystone service user).
         return new SelectelConnector(JSON.parse(token) as SelectelCredentials);

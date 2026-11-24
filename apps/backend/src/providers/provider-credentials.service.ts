@@ -71,6 +71,15 @@ export class ProviderCredentialsService {
       const c = this.decodeCredentials(enc);
       return { baseUrl: c.baseUrl ?? null, username: c.username ?? null };
     }
+    if (kind === 'billmgr-cookie') {
+      // The cookie itself is a secret; the UA it belongs to is not, and the form needs it back.
+      const c = this.decodeCredentials(enc);
+      return {
+        baseUrl: c.baseUrl ?? null,
+        username: c.username ?? null,
+        userAgent: c.userAgent ?? null,
+      };
+    }
     if (kind === 'hostvds') {
       const c = this.decodeCredentials(enc);
       return { baseUrl: c.baseUrl ?? null, username: c.username ?? null, email: c.email ?? null };
@@ -87,6 +96,7 @@ export class ProviderCredentialsService {
         hasApiPassword: false,
         hasSecretKey: false,
         hasWebPassword: false,
+        hasCookie: false,
       };
     }
     if (
@@ -142,6 +152,14 @@ export class ProviderCredentialsService {
     }
     if (kind === 'billmgr' || kind === 'hostbill') {
       return { hasPassword: Boolean(c.password), hasTotpSecret: Boolean(c.totpSecret) };
+    }
+    if (kind === 'billmgr-cookie') {
+      // password/totp here are the optional refresh pair, not the auth itself.
+      return {
+        hasCookie: Boolean(c.cookie),
+        hasPassword: Boolean(c.password),
+        hasTotpSecret: Boolean(c.totpSecret),
+      };
     }
     if (kind === 'beget') {
       return {
@@ -246,6 +264,13 @@ export class ProviderCredentialsService {
       if (c.totpSecret) out.totpSecret = c.totpSecret;
       return out;
     }
+    if (kind === 'billmgr-cookie') {
+      const out: ProviderCredentialsReveal = {};
+      if (c.cookie) out.cookie = c.cookie;
+      if (c.password) out.password = c.password;
+      if (c.totpSecret) out.totpSecret = c.totpSecret;
+      return out;
+    }
     if (kind === 'beget') {
       const out: ProviderCredentialsReveal = {};
       if (c.password) out.password = c.password;
@@ -281,6 +306,8 @@ export class ProviderCredentialsService {
       secretKey?: string;
       email?: string;
       webPassword?: string;
+      cookie?: string;
+      userAgent?: string;
       useCatalogNames?: boolean;
     },
     existingEnc?: Uint8Array | null,
@@ -415,6 +442,34 @@ export class ProviderCredentialsService {
       }
       const creds: Record<string, string> = { baseUrl, username, password };
       const totpSecret = supportsTotp ? (dto.totpSecret ?? base.totpSecret) : undefined;
+      if (totpSecret) creds.totpSecret = totpSecret;
+      return this.crypto.encrypt(JSON.stringify(creds));
+    }
+    if (kind === 'billmgr-cookie') {
+      // JSON { baseUrl, cookie, userAgent?, username?, password?, totpSecret? }. The cookie is the
+      // credential; login/password are the optional pair that lets a sync renew an expired session.
+      const supplied =
+        dto.baseUrl ||
+        dto.cookie ||
+        dto.userAgent ||
+        dto.username ||
+        dto.password ||
+        dto.totpSecret;
+      if (!supplied) return null;
+
+      const base = this.decodeCredentials(existingEnc);
+      const baseUrl = dto.baseUrl ?? base.baseUrl;
+      const cookie = dto.cookie ?? base.cookie;
+      if (!baseUrl || !cookie) {
+        throw new BadRequestException('Provide the panel URL and the session cookie together');
+      }
+      const creds: Record<string, string> = { baseUrl, cookie };
+      const userAgent = dto.userAgent ?? base.userAgent;
+      if (userAgent) creds.userAgent = userAgent;
+      const username = dto.username ?? base.username;
+      const password = dto.password ?? base.password;
+      if (username && password) Object.assign(creds, { username, password });
+      const totpSecret = dto.totpSecret ?? base.totpSecret;
       if (totpSecret) creds.totpSecret = totpSecret;
       return this.crypto.encrypt(JSON.stringify(creds));
     }
