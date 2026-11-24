@@ -45,12 +45,16 @@ export const ovhPriceSchema = z.object({
 });
 export type OvhPrice = z.infer<typeof ovhPriceSchema>;
 
-/** GET /me → nichandle.Nichandle (identity, account currency, subsidiary). */
+/**
+ * GET /me → nichandle.Nichandle (identity, account currency, subsidiary). `currency` is not a code
+ * but `nichandle.Currency`, an envelope of the code and its display symbol. Only the identity
+ * fields are declared; zod strips OVH's postal/contact data.
+ */
 export const ovhAccountDetailsSchema = z.object({
   nichandle: z.string().nullish(),
   email: z.string().nullish(),
   country: z.string().nullish(),
-  currency: z.string().nullish(),
+  currency: z.object({ code: z.string().nullish(), symbol: z.string().nullish() }).nullish(),
   ovhCompany: z.string().nullish(),
   ovhSubsidiary: z.string().nullish(),
 });

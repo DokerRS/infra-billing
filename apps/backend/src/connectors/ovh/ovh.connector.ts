@@ -157,7 +157,14 @@ export class OvhConnector implements Connector {
         },
       });
       const parsed = schema.safeParse(data);
-      if (!parsed.success) throw new Error(`OVH: unexpected ${path} response`);
+      if (!parsed.success) {
+        // Which field OVH changed, not just that something did.
+        const detail = parsed.error.issues
+          .slice(0, 3)
+          .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
+          .join('; ');
+        throw new Error(`OVH: unexpected ${path} response (${detail})`);
+      }
       return parsed.data;
     } catch (e) {
       if (axios.isAxiosError(e)) {
@@ -216,7 +223,7 @@ export class OvhConnector implements Connector {
 
   async fetchAccount(signal: AbortSignal): Promise<Account> {
     const me = await this.get('/me', ovhAccountDetailsSchema, signal);
-    this.accountCurrency = normalizeCurrency(me.currency ?? undefined, OVH_FALLBACK_CURRENCY);
+    this.accountCurrency = normalizeCurrency(me.currency?.code ?? undefined, OVH_FALLBACK_CURRENCY);
     const accountIds = await this.get('/me/ovhAccount', ovhBillIdListSchema, signal);
     if (accountIds.length === 0) return { balance: null, currency: this.accountCurrency };
     const account = await this.get(
