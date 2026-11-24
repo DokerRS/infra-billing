@@ -42,6 +42,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Registry repository names must be lowercase, but github.repository keeps the owner's casing.
+      - name: Resolve image names
+        id: images
+        run: |
+          echo "ghcr=ghcr.io/$(tr '[:upper:]' '[:lower:]' <<< "$GITHUB_REPOSITORY")" >> "$GITHUB_OUTPUT"
+          echo "dockerhub=docker.io/$(tr '[:upper:]' '[:lower:]' <<< "${DOCKERHUB_NAME:-$GITHUB_REPOSITORY}")" >> "$GITHUB_OUTPUT"
+        env:
+          DOCKERHUB_NAME: ${{ vars.DOCKERHUB_IMAGE }}
+
       - name: Create Release
         uses: softprops/action-gh-release@v3
         with:
@@ -51,10 +60,10 @@ jobs:
           make_latest: true
           body: |
             Docker image:
-            - `ghcr.io/${{ toLower(github.repository) }}:${{ github.ref_name }}`
-            - `ghcr.io/${{ toLower(github.repository) }}:latest`
-            - `docker.io/${{ toLower(vars.DOCKERHUB_IMAGE || github.repository) }}:${{ github.ref_name }}`
-            - `docker.io/${{ toLower(vars.DOCKERHUB_IMAGE || github.repository) }}:latest`
+            - `${{ steps.images.outputs.ghcr }}:${{ github.ref_name }}`
+            - `${{ steps.images.outputs.ghcr }}:latest`
+            - `${{ steps.images.outputs.dockerhub }}:${{ github.ref_name }}`
+            - `${{ steps.images.outputs.dockerhub }}:latest`
 
   send-finish-tg-msg:
     name: Send TG message
