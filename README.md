@@ -18,13 +18,13 @@
 - **Провайдеры с API:** Timeweb Cloud, Hetzner Cloud, Hostkey (InvAPI), netcup, HostBill,
   ISPsystem BILLmanager, Selectel, 4VPS.SU, Netlen, Beget Cloud, Porkbun, Spaceship, Vultr,
   Linode, Aeza, VDSina, Cloudflare, StormWall, NetAngels, Yandex Cloud, Double Servers, OpenRouter,
-  HostUp, HostVDS / CloudCore, DataPacket, Tube-Hosting, Gcore, NodeHost, 1Cent. Плюс **Manual** — провайдеры
+  HostUp, HostVDS / CloudCore, DataPacket, Tube-Hosting, Gcore, NodeHost, 1Cent, OVH. Плюс **Manual** — провайдеры
   без API ведутся руками.
 - **Автосинк** (по расписанию + кнопкой): баланс + валюта аккаунта, список серверов/услуг, даты
   следующих списаний; история баланса по дням (снапшоты).
 - **Импорт платежей** там, где API отдаёт реестр: пополнения и списания (BILLmanager, Netlen,
   Vultr, Aeza, VDSina, Double Servers, HostVDS, Tube-Hosting, Gcore, NodeHost, 1Cent), пополнения и счета
-  (Linode), оплаченные счета (HostBill, DataPacket), платежи (HostUp), потребление (Selectel,
+  (Linode), счета и пополнения (OVH), оплаченные счета (HostBill, DataPacket), платежи (HostUp), потребление (Selectel,
   Yandex Cloud, OpenRouter), история биллинга (Cloudflare, best-effort). Ручные платежи — в журнале.
 - **Аналитика:** месячные/годовые расходы, разрезы по провайдеру / стране / типу / валюте, прогноз
   по будущим списаниям, ближайшие списания с подсветкой критичности.
@@ -424,6 +424,19 @@ curl -H "Authorization: Bearer ib_…" https://infra-billing/api/providers
   Возвраты (`CREDIT`) пропускаются — это возврат уже учтённых денег. Раздел `/payments` не
   используется: он отдаёт только 20 последних внешних платежей без пагинации. Ограничение API —
   120 запросов в минуту.
+- **OVH** — три ключа из мастера [createToken](https://api.ovhcloud.com/createToken/):
+  `applicationKey`, `applicationSecret` и `consumerKey`; запросы подписываются (`X-Ovh-Signature`,
+  SHA1 от секретов, метода, полного URL, тела и метки времени), расхождение часов сервера
+  компенсируется по `/auth/time`. Укажите API-хост своего подразделения: `api.eu.ovhcloud.com`
+  для Европы, `ca.api.ovh.com` для Канады, `api.us.ovhcloud.com` для США, `api.ovh.com` для
+  остальных — ключ работает только там, где выдан. Баланс — из `/me/ovhAccount` (валюта
+  аккаунта из `/me`). Услуги — из `/services` (без пагинации): цена — `billing.pricing.price`
+  за цикл `duration` (приведена к месяцу), дата списания — `billing.nextBillingDate`, страна —
+  по коду локации в имени/описании. Импортируются оплаченные счета `/me/bill` (счета за
+  последние 400 дней, без пагинации) и пополнения из `/me/ovhAccount/{id}/movements`; списания с
+  баланса пропускаются — это оплата уже учтённого счёта. Права ключа: только на чтение
+  (`/me`, `/me/bill*`, `/me/ovhAccount*`, `/services*`) — продление, отключение и оплата через
+  панель не выдаются.
 - **Manual** — без API, всё вводится руками.
 
 ## Telegram-уведомления

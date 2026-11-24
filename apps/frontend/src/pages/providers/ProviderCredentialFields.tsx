@@ -20,6 +20,7 @@ import { Controller, type UseFormReturn } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { apiErrorMessage } from '@/api/client';
 import { revealAccountCredentials, type SecretField, useYandexDiscover } from '@/api/providers';
+import { Combobox } from '@/components/Combobox';
 import { NetcupAuthorizeButton } from '@/components/NetcupAuthorizeButton';
 import { SecretInput } from '@/components/SecretInput';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +33,8 @@ import {
   AEZA_DEFAULT_BASE_URL,
   type AccountFormValues,
   aezaBranchOrigin,
+  OVH_DEFAULT_ENDPOINT,
+  OVH_ENDPOINTS,
   type StoredSecretFlags,
 } from './providerForm';
 
@@ -42,6 +45,22 @@ interface ProviderCredentialFieldsProps {
   accountUuid?: string;
   storedSecrets?: StoredSecretFlags;
 }
+
+// The API host is picked from the fixed list rather than typed: a wrong host would leak the
+// signature inputs. The subsidiary that owns the account is shown next to each host.
+const OVH_ENDPOINT_SUBSIDIARIES: Record<string, string> = {
+  'https://api.ovh.com/1.0': 'global',
+  'https://api.eu.ovhcloud.com/1.0': 'EU',
+  'https://ca.api.ovh.com/1.0': 'CA',
+  'https://api.ca.ovhcloud.com/1.0': 'CA',
+  'https://api.us.ovhcloud.com/1.0': 'US',
+};
+
+const OVH_ENDPOINT_OPTIONS = OVH_ENDPOINTS.map((url) => ({
+  value: url,
+  label: url,
+  hint: OVH_ENDPOINT_SUBSIDIARIES[url] ?? undefined,
+}));
 
 function SecretFormField({
   form,
@@ -699,6 +718,72 @@ export function ProviderCredentialFields({
           reveal={reveal}
         />
       </Field>
+    );
+  }
+
+  if (kind === 'ovh') {
+    return (
+      <>
+        <Field
+          id="cred-token"
+          label={t('providers.field.ovhApplicationKey')}
+          description={t('providers.field.ovhApplicationKeyDesc')}
+          link="https://api.ovhcloud.com/createToken/"
+        >
+          <SecretFormField
+            form={form}
+            name="token"
+            id="cred-token"
+            hasStored={storedSecrets?.hasToken}
+            reveal={reveal}
+          />
+        </Field>
+        <Field
+          id="cred-secret-key"
+          label={t('providers.field.ovhApplicationSecret')}
+          description={t('providers.field.ovhApplicationSecretDesc')}
+        >
+          <SecretFormField
+            form={form}
+            name="secretKey"
+            id="cred-secret-key"
+            hasStored={storedSecrets?.hasSecretKey}
+            reveal={reveal}
+          />
+        </Field>
+        <Field
+          id="cred-password"
+          label={t('providers.field.ovhConsumerKey')}
+          description={t('providers.field.ovhConsumerKeyDesc')}
+        >
+          <SecretFormField
+            form={form}
+            name="password"
+            id="cred-password"
+            hasStored={storedSecrets?.hasPassword}
+            reveal={reveal}
+          />
+        </Field>
+        <Field
+          id="cred-base-url"
+          label={t('providers.field.ovhEndpoint')}
+          description={t('providers.field.ovhEndpointDesc')}
+        >
+          <Controller
+            control={form.control}
+            name="baseUrl"
+            render={({ field }) => (
+              <Combobox
+                id="cred-base-url"
+                value={field.value || OVH_DEFAULT_ENDPOINT}
+                onChange={field.onChange}
+                options={OVH_ENDPOINT_OPTIONS}
+                mono
+              />
+            )}
+          />
+        </Field>
+      </>
     );
   }
 

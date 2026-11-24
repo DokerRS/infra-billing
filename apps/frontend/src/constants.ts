@@ -32,6 +32,7 @@ const PROVIDER_KINDS: ProviderKind[] = [
   'gcore',
   'nodehost',
   '1cent',
+  'ovh',
   'manual',
 ];
 

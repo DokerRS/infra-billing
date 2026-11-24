@@ -72,6 +72,7 @@ export const DEFAULT_LOGIN_URLS: Record<string, string> = {
   gcore: 'https://portal.gcore.com',
   nodehost: 'https://nodehost.cc',
   '1cent': 'https://bill.1cent.host',
+  ovh: 'https://api.eu.ovhcloud.com/console/',
 };
 
 export const EMPTY_IDENTITY: IdentityFormValues = {
@@ -151,6 +152,18 @@ export function aezaBranchOrigin(raw: string | undefined): string {
   return AEZA_BASE_URLS.includes(origin) ? origin : AEZA_DEFAULT_BASE_URL;
 }
 
+// OVH runs the same API on several hosts and an application key only works on the one matching
+// the account's subsidiary, so the endpoint is part of the credentials. The signature is hashed
+// over the full request URL, so the list is fixed to OVH's own hosts.
+export const OVH_ENDPOINTS = [
+  'https://api.ovh.com/1.0',
+  'https://api.eu.ovhcloud.com/1.0',
+  'https://ca.api.ovh.com/1.0',
+  'https://api.ca.ovhcloud.com/1.0',
+  'https://api.us.ovhcloud.com/1.0',
+];
+export const OVH_DEFAULT_ENDPOINT = OVH_ENDPOINTS[0];
+
 const HOSTKEY_API_KEY_RE = /^[a-f0-9]{16}-[a-f0-9]{16}$/i;
 
 function normalizeHostkeyToken(raw: string): string {
@@ -214,6 +227,8 @@ export function validateAccountCredentials(
   if (requireCreds && kind === 'gcore' && !v.token) return t('providers.err.gcoreToken');
   if (requireCreds && kind === 'nodehost' && !v.token) return t('providers.err.nodehostToken');
   if (requireCreds && kind === '1cent' && !v.token) return t('providers.err.cent1Token');
+  if (requireCreds && kind === 'ovh' && !(v.token && v.secretKey && v.password))
+    return t('providers.err.ovhCreds');
   return null;
 }
 

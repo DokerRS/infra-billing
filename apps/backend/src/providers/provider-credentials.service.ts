@@ -11,6 +11,7 @@ import {
   parseOpenRouterCredentials,
 } from '@connectors/openrouter/openrouter.types';
 import { HOSTVDS_BRANDS } from '@connectors/hostvds/hostvds.types';
+import { isOvhEndpoint, OVH_ENDPOINTS } from '@connectors/ovh/ovh.types';
 import { VDSINA_BASE_URLS } from '@connectors/vdsina/vdsina.types';
 import type { YandexCredentials } from '../connectors/yandex/yandex.types';
 import { CryptoService } from '../crypto/crypto.service';
@@ -47,6 +48,10 @@ export class ProviderCredentialsService {
     }
     if (kind === 'aeza') {
       return { baseUrl: this.decodeAezaCredentials(enc).baseUrl ?? null };
+    }
+    if (kind === 'ovh') {
+      // The API zone is a non-secret pick from a fixed allowlist.
+      return { baseUrl: this.decodeCredentials(enc).baseUrl ?? null };
     }
     if (kind === 'openrouter') {
       const c = this.decodeOpenRouterCredentials(enc);
@@ -114,6 +119,13 @@ export class ProviderCredentialsService {
     }
     if (kind === 'spaceship') {
       return { hasToken: Boolean(c.apiKey), hasSecretKey: Boolean(c.apiSecret) };
+    }
+    if (kind === 'ovh') {
+      return {
+        hasToken: Boolean(c.applicationKey),
+        hasSecretKey: Boolean(c.applicationSecret),
+        hasPassword: Boolean(c.consumerKey),
+      };
     }
     if (kind === 'yandex') {
       return { hasToken: Boolean(c.keyId && c.serviceAccountId && c.privateKey) };
@@ -195,6 +207,13 @@ export class ProviderCredentialsService {
       const out: ProviderCredentialsReveal = {};
       if (c.apiKey) out.token = c.apiKey;
       if (c.apiSecret) out.secretKey = c.apiSecret;
+      return out;
+    }
+    if (kind === 'ovh') {
+      const out: ProviderCredentialsReveal = {};
+      if (c.applicationKey) out.token = c.applicationKey;
+      if (c.applicationSecret) out.secretKey = c.applicationSecret;
+      if (c.consumerKey) out.password = c.consumerKey;
       return out;
     }
     if (kind === 'yandex') {
@@ -465,6 +484,31 @@ export class ProviderCredentialsService {
         throw new BadRequestException('Provide both the Spaceship API key and secret');
       }
       return this.crypto.encrypt(JSON.stringify({ apiKey, apiSecret }));
+    }
+    if (kind === 'ovh') {
+      // JSON { applicationKey, applicationSecret, consumerKey, baseUrl? } — the trio from
+      // https://api.ovhcloud.com/createToken/. The signature is hashed over the full request URL,
+      // so a foreign base URL would hand the application secret to whoever owns it: the endpoint is
+      // therefore pinned to OVH's own hosts. Merge so a partial edit (e.g. a re-minted consumer key)
+      // keeps the rest.
+      const supplied = dto.token || dto.secretKey || dto.password || dto.baseUrl;
+      if (!supplied) return null;
+      const base = this.decodeCredentials(existingEnc);
+      const applicationKey = dto.token ?? base.applicationKey;
+      const applicationSecret = dto.secretKey ?? base.applicationSecret;
+      const consumerKey = dto.password ?? base.consumerKey;
+      if (!applicationKey || !applicationSecret || !consumerKey) {
+        throw new BadRequestException(
+          'Provide the OVH application key, application secret and consumer key together',
+        );
+      }
+      const creds: Record<string, string> = { applicationKey, applicationSecret, consumerKey };
+      const baseUrl = (dto.baseUrl ?? base.baseUrl)?.replace(/\/+$/, '');
+      if (baseUrl && !isOvhEndpoint(baseUrl)) {
+        throw new BadRequestException(`OVH API endpoint must be ${OVH_ENDPOINTS.join(' or ')}`);
+      }
+      if (baseUrl) creds.baseUrl = baseUrl;
+      return this.crypto.encrypt(JSON.stringify(creds));
     }
     if (kind === 'yandex') {
       // `token` carries the service-account authorized key (JSON); parse it into { keyId,

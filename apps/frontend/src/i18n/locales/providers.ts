@@ -121,6 +121,17 @@ export const providers = {
         'NodeHost developer cabinet → API keys: a read-only key (scopes account:read and servers:read) is enough. Syncs the balance (USD), servers with the monthly price and expiry date, and top-ups and charges. Only servers created through the API are visible: servers bought on the website are not.',
       apiTokenDescCent1:
         '1Cent.host cabinet → Settings → API: create a key (`cx_…`), read-only is enough. Syncs the balance (RUB), servers with the renewal price, expiry date and location, plus the balance ledger (top-ups and charges).',
+      ovhApplicationKey: 'Application key',
+      ovhApplicationKeyDesc:
+        'OVH → createToken → grant only the read-only billing paths (/me, /me/bill*, /me/ovhAccount*, /services*). The key belongs to one subsidiary.',
+      ovhApplicationSecret: 'Application secret',
+      ovhApplicationSecretDesc: 'Shown once next to the application key when you create it.',
+      ovhConsumerKey: 'Consumer key',
+      ovhConsumerKeyDesc:
+        'Granted at the end of the createToken wizard, once you have approved the requested rights.',
+      ovhEndpoint: 'API endpoint',
+      ovhEndpointDesc:
+        'The host of the subsidiary your account was created with: api.eu.ovhcloud.com for EU, ca.api.ovh.com for Canada, api.us.ovhcloud.com for the US, api.ovh.com for everything else.',
       managementKey: 'Management API key',
       apiTokenDescOpenrouter:
         'Go to openrouter.ai. Open "Home" → "Management Keys" → "New Key", enter any name, then "Create". Copy the key and paste it below.',
@@ -203,6 +214,7 @@ export const providers = {
       gcoreToken: 'Enter the Gcore API token',
       nodehostToken: 'Enter the NodeHost API key',
       cent1Token: 'Enter the 1Cent API key',
+      ovhCreds: 'Enter the OVH application key, application secret and consumer key',
       yandexKey: 'Paste the Yandex Cloud service account authorized key (JSON)',
     },
     netcup: {
@@ -407,6 +419,17 @@ export const providers = {
         'Кабинет разработчика NodeHost → API-ключи: достаточно ключа только на чтение (scopes account:read и servers:read). Синхронизируются баланс (USD), серверы с месячной ценой и датой окончания, пополнения и списания. Видны только серверы, созданные через API: купленные на сайте в нём не появляются.',
       apiTokenDescCent1:
         'Кабинет 1Cent.host → Настройки → API: создайте ключ (`cx_…`), достаточно ключа только на чтение. Синхронизируются баланс (RUB), серверы с ценой продления, датой окончания и локацией, а также операции по балансу (пополнения и списания).',
+      ovhApplicationKey: 'Application key',
+      ovhApplicationKeyDesc:
+        'OVH → createToken: выдайте ключу только права на чтение (/me, /me/bill*, /me/ovhAccount*, /services*). Ключ привязан к одному подразделению.',
+      ovhApplicationSecret: 'Application secret',
+      ovhApplicationSecretDesc: 'Показывается один рядом с application key при создании.',
+      ovhConsumerKey: 'Consumer key',
+      ovhConsumerKeyDesc:
+        'Выдаётся в конце мастера createToken, когда вы подтвердите запрошенные права.',
+      ovhEndpoint: 'API-хост',
+      ovhEndpointDesc:
+        'Хост подразделения, в котором создан аккаунт: api.eu.ovhcloud.com для Европы, ca.api.ovh.com для Канады, api.us.ovhcloud.com для США, api.ovh.com для остальных.',
       managementKey: 'Management API-ключ',
       apiTokenDescOpenrouter:
         'Зайдите на openrouter.ai. Откройте "Home" → "Management Keys" → "New Key", введите любое имя, затем "Create". Скопируйте ключ и вставьте его ниже.',
@@ -489,6 +512,7 @@ export const providers = {
       gcoreToken: 'Укажите API-токен Gcore',
       nodehostToken: 'Укажите API-ключ NodeHost',
       cent1Token: 'Укажите API-ключ 1Cent',
+      ovhCreds: 'Укажите application key, application secret и consumer key OVH',
       yandexKey: 'Вставьте авторизованный ключ сервисного аккаунта Yandex Cloud (JSON)',
     },
     netcup: {

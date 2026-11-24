@@ -29,6 +29,8 @@ import { NetlenConnector } from './netlen/netlen.connector';
 import { NodehostConnector } from './nodehost/nodehost.connector';
 import { OpenRouterConnector } from './openrouter/openrouter.connector';
 import { parseOpenRouterCredentials } from './openrouter/openrouter.types';
+import { OvhConnector } from './ovh/ovh.connector';
+import type { OvhCredentials } from './ovh/ovh.types';
 import { PorkbunConnector } from './porkbun/porkbun.connector';
 import type { PorkbunCredentials } from './porkbun/porkbun.types';
 import { SelectelConnector } from './selectel/selectel.connector';
@@ -138,6 +140,10 @@ export class ConnectorFactory {
       case '1cent':
         // 1Cent secret is the raw API key (single string, sent as the Authorization Bearer header).
         return new Cent1Connector(token);
+      case 'ovh':
+        // OVH secret is JSON: { applicationKey, applicationSecret, consumerKey, baseUrl? } — the
+        // trio from https://api.ovhcloud.com/createToken/; baseUrl picks the API zone.
+        return new OvhConnector(JSON.parse(token) as OvhCredentials);
       default:
         throw new Error(`Connector for kind="${kind}" is not supported`);
     }

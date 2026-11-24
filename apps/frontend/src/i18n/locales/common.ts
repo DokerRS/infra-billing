@@ -229,6 +229,7 @@ export const common = {
         gcore: 'Gcore',
         nodehost: 'NodeHost',
         '1cent': '1Cent',
+        ovh: 'OVH',
         manual: 'Manual',
       },
       rateSource: {
@@ -463,6 +464,7 @@ export const common = {
         gcore: 'Gcore',
         nodehost: 'NodeHost',
         '1cent': '1Cent',
+        ovh: 'OVH',
         manual: 'Ручной',
       },
       rateSource: {
