@@ -19,7 +19,7 @@ x-env: &env
 
 services:
   infra-billing:
-    image: ghcr.io/mishkatik/infra-billing:latest
+    image: ghcr.io/dokerrs/infra-billing:latest
     container_name: infra-billing
     hostname: infra-billing
     <<: [*common, *logging, *env]

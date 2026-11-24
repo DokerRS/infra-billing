@@ -60,15 +60,15 @@
 
 **Требования:** Docker + Docker Compose plugin; домен и reverse-proxy с TLS (см. ниже — без HTTPS
 вход не работает, т.к. сессионная кука `Secure`). Образ берётся из GHCR
-(`ghcr.io/mishkatik/infra-billing`).
+(`ghcr.io/dokerrs/infra-billing`).
 
 ```bash
 # 1. Каталог
 mkdir -p /opt/infra-billing && cd /opt/infra-billing
 
 # 2. Скачать prod-compose и пример конфига в .env
-curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/mishkatik/infra-billing/main/docker-compose-prod.yml
-curl -fsSL -o .env https://raw.githubusercontent.com/mishkatik/infra-billing/main/.env.example
+curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/DokerRS/infra-billing/main/docker-compose-prod.yml
+curl -fsSL -o .env https://raw.githubusercontent.com/DokerRS/infra-billing/main/.env.example
 
 # 3. Сгенерировать ключ шифрования (GNU sed; разделитель # — т.к. base64 содержит /)
 sed -i "s#^ENCRYPTION_KEY=.*#ENCRYPTION_KEY=$(openssl rand -base64 32)#" .env
@@ -141,7 +141,7 @@ docker compose exec -T infra-billing-db sh -c 'dropdb -U "$POSTGRES_USER" "$POST
 docker compose exec -T infra-billing-db sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner' < backups/infra_billing-ГГГГММДД-ЧЧММ.dump
 
 # 2. Закрепить прошлую версию (например, 0.47.0) и поднять панель
-sed -i 's#image: ghcr.io/mishkatik/infra-billing:.*#image: ghcr.io/mishkatik/infra-billing:0.47.0#' docker-compose.yml
+sed -i 's#image: ghcr.io/dokerrs/infra-billing:.*#image: ghcr.io/dokerrs/infra-billing:0.47.0#' docker-compose.yml
 docker compose up -d
 ```
 
@@ -161,7 +161,7 @@ PostgreSQL 17 — достаточно не трогать свой `docker-comp
 docker compose exec -T infra-billing-db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > infra_billing-pg17.dump
 
 # 2. Скачать новый compose (в нём уже postgres:18 и новый путь тома)
-curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/mishkatik/infra-billing/main/docker-compose-prod.yml
+curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/DokerRS/infra-billing/main/docker-compose-prod.yml
 
 # 3. Временно поставить у сервиса infra-billing-db образ pgautoupgrade и прогнать апгрейд
 sed -i 's#image: postgres:18.*#image: pgautoupgrade/pgautoupgrade:18.6-trixie#' docker-compose.yml
