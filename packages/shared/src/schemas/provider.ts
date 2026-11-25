@@ -100,6 +100,7 @@ export type ProviderCredentialsReveal = z.infer<typeof providerCredentialsReveal
 // sign-in — `email` + `webPassword` — for the balance, the prices and the ledger.
 // Infomaniak uses `token` alone (a personal API token sent as `Authorization: Bearer`); the API has
 // no balance and no payment ledger, so nothing else is needed.
+// SKRIME uses `token` alone (the dashboard API key, sent as `Authorization: Bearer`).
 // None are ever echoed back.
 const credentialFields = {
   token: z.string().min(1).describe('API token').optional(),

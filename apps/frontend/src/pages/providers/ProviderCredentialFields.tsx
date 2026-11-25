@@ -830,6 +830,25 @@ export function ProviderCredentialFields({
     );
   }
 
+  if (kind === 'skrime') {
+    return (
+      <Field
+        id="cred-token"
+        label={t('providers.field.apiToken')}
+        description={t('providers.field.apiTokenDescSkrime')}
+        link="https://skrime.eu/api"
+      >
+        <SecretFormField
+          form={form}
+          name="token"
+          id="cred-token"
+          hasStored={storedSecrets?.hasToken}
+          reveal={reveal}
+        />
+      </Field>
+    );
+  }
+
   if (kind === 'ovh') {
     return (
       <>

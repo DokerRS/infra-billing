@@ -40,6 +40,7 @@ import { ProcloudConnector } from './procloud/procloud.connector';
 import type { ProcloudCredentials } from './procloud/procloud.types';
 import { SelectelConnector } from './selectel/selectel.connector';
 import type { SelectelCredentials } from './selectel/selectel.types';
+import { SkrimeConnector } from './skrime/skrime.connector';
 import { SpaceshipConnector } from './spaceship/spaceship.connector';
 import type { SpaceshipCredentials } from './spaceship/spaceship.types';
 import { StormwallConnector } from './stormwall/stormwall.connector';
@@ -161,6 +162,9 @@ export class ConnectorFactory {
         // OVH secret is JSON: { applicationKey, applicationSecret, consumerKey, baseUrl? } — the
         // trio from https://api.ovhcloud.com/createToken/; baseUrl picks the API zone.
         return new OvhConnector(JSON.parse(token) as OvhCredentials);
+      case 'skrime':
+        // SKRIME secret is the raw API key (single string, sent as the Authorization Bearer header).
+        return new SkrimeConnector(token);
       default:
         throw new Error(`Connector for kind="${kind}" is not supported`);
     }

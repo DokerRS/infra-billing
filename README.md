@@ -19,13 +19,14 @@
   ISPsystem BILLmanager, Selectel, 4VPS.SU, Netlen, Beget Cloud, Porkbun, Spaceship, Vultr,
   Linode, Aeza, VDSina, Cloudflare, StormWall, NetAngels, Yandex Cloud, Double Servers, OpenRouter,
   HostUp, HostVDS / CloudCore, DataPacket, Tube-Hosting, Gcore, NodeHost, 1Cent, OVH, ProCloud,
-  Infomaniak, плюс
+  Infomaniak, SKRIME, плюс
   **ISP BILLmanager (cookie)** — вход по браузерной куке. Плюс **Manual** — провайдеры
   без API ведутся руками.
 - **Автосинк** (по расписанию + кнопкой): баланс + валюта аккаунта, список серверов/услуг, даты
   следующих списаний; история баланса по дням (снапшоты).
 - **Импорт платежей** там, где API отдаёт реестр: пополнения и списания (BILLmanager, Netlen,
-  Vultr, Aeza, VDSina, Double Servers, HostVDS, Tube-Hosting, Gcore, NodeHost, 1Cent, ProCloud), пополнения и счета
+  Vultr, Aeza, VDSina, Double Servers, HostVDS, Tube-Hosting, Gcore, NodeHost, 1Cent, ProCloud,
+  SKRIME), пополнения и счета
   (Linode), счета и пополнения (OVH), оплаченные счета (HostBill, DataPacket), платежи (HostUp), потребление (Selectel,
   Yandex Cloud, OpenRouter), история биллинга (Cloudflare, best-effort). Ручные платежи — в журнале.
 - **Аналитика:** месячные/годовые расходы, разрезы по провайдеру / стране / типу / валюте, прогноз
@@ -458,6 +459,13 @@ curl -H "Authorization: Bearer ib_…" https://infra-billing/api/providers
   отдаётся (есть только калькуляторы каталога), поэтому стоимость не заполняется. Баланса, кредитов и
   истории платежей в API нет вовсе — импорт платежей для провайдера недоступен. Валюта определяется по
   стране профиля: CHF для Швейцарии и Лихтенштейна, иначе EUR.
+- **SKRIME** (skrime.eu) — API-ключ из [дашборда](https://skrime.eu/api) (раздел API); запросы идут
+  в `https://skrime.eu/api` с заголовком `Authorization: Bearer`. Ответы завёрнуты в
+  `{ response, state, data }`, код ошибки — в HTTP-статусе. Баланс — `balance.amount` из
+  `/account/user`, услуги — из `/product/all` (плоский список без пагинации, все типы сразу): цена
+  за период в `price`, сам период в месяцах — в `duration`, окончание — в `expireAt`, тип услуги —
+  в `type` (server, dedicated, webspace, domain, dns, ssl…). Из `/account/transactions`
+  импортируются пополнения (`credit`) и списания (`transaction`). Валюта — EUR.
 - **Manual** — без API, всё вводится руками.
 
 ## Telegram-уведомления

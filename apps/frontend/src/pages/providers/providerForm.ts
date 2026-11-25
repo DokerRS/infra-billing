@@ -78,6 +78,7 @@ export const DEFAULT_LOGIN_URLS: Record<string, string> = {
   ovh: 'https://api.eu.ovhcloud.com/console/',
   procloud: 'https://my.procloud.ru',
   infomaniak: 'https://manager.infomaniak.com/v3/ng/profile/user/token/list',
+  skrime: 'https://skrime.eu/api',
 };
 
 export const EMPTY_IDENTITY: IdentityFormValues = {
@@ -263,6 +264,7 @@ export function validateAccountCredentials(
   if (requireCreds && kind === 'nodehost' && !v.token) return t('providers.err.nodehostToken');
   if (requireCreds && kind === '1cent' && !v.token) return t('providers.err.cent1Token');
   if (requireCreds && kind === 'infomaniak' && !v.token) return t('providers.err.infomaniakToken');
+  if (requireCreds && kind === 'skrime' && !v.token) return t('providers.err.skrimeToken');
   if (requireCreds && kind === 'ovh' && !(v.token && v.secretKey && v.password))
     return t('providers.err.ovhCreds');
   if (requireCreds && kind === 'procloud' && !(v.username && v.password))

@@ -147,6 +147,8 @@ export const providers = {
         '1Cent.host cabinet → Settings → API: create a key (`cx_…`), read-only is enough. Syncs the balance (RUB), servers with the renewal price, expiry date and location, plus the balance ledger (top-ups and charges).',
       apiTokenDescInfomaniak:
         'Infomaniak Manager → your profile → API tokens: create a token with the `products:read` scope (add `userinfo:read` so the account currency is detected). Syncs subscriptions (domains, hosting, kSuite, Public Cloud…) with their expiry date. The API exposes neither an account balance nor a payment history, so those stay empty.',
+      apiTokenDescSkrime:
+        'SKRIME dashboard → API: create an API key. Syncs the balance (EUR), services with their price, expiry date and IP addresses, plus the account transactions (top-ups and charges).',
       ovhApplicationKey: 'Application key',
       ovhApplicationKeyDesc:
         'OVH → createToken → grant only the read-only billing paths (/me, /me/bill*, /me/ovhAccount*, /services*). The key belongs to one subsidiary.',
@@ -241,6 +243,7 @@ export const providers = {
       nodehostToken: 'Enter the NodeHost API key',
       cent1Token: 'Enter the 1Cent API key',
       infomaniakToken: 'Enter the Infomaniak API token',
+      skrimeToken: 'Enter the SKRIME API key',
       ovhCreds: 'Enter the OVH application key, application secret and consumer key',
       procloudCreds: 'Enter the OpenStack login and password from the ProCloud RC file',
       procloudWebCreds: 'Enter both the cabinet email and password, or neither',
@@ -475,6 +478,8 @@ export const providers = {
         'Кабинет 1Cent.host → Настройки → API: создайте ключ (`cx_…`), достаточно ключа только на чтение. Синхронизируются баланс (RUB), серверы с ценой продления, датой окончания и локацией, а также операции по балансу (пополнения и списания).',
       apiTokenDescInfomaniak:
         'Менеджер Infomaniak → ваш профиль → API-токены: создайте токен со scope `products:read` (добавьте `userinfo:read`, чтобы определять валюту аккаунта). Синхронизируются подписки (домены, хостинг, kSuite, Public Cloud…) с датой окончания. Ни баланса, ни истории платежей в API нет, поэтому они остаются пустыми.',
+      apiTokenDescSkrime:
+        'Дашборд SKRIME → API: создайте API-ключ. Синхронизируются баланс (EUR), услуги с ценой, датой окончания и IP-адресами, а также операции по счёту (пополнения и списания).',
       ovhApplicationKey: 'Application key',
       ovhApplicationKeyDesc:
         'OVH → createToken: выдайте ключу только права на чтение (/me, /me/bill*, /me/ovhAccount*, /services*). Ключ привязан к одному подразделению.',
@@ -569,6 +574,7 @@ export const providers = {
       nodehostToken: 'Укажите API-ключ NodeHost',
       cent1Token: 'Укажите API-ключ 1Cent',
       infomaniakToken: 'Укажите API-токен Infomaniak',
+      skrimeToken: 'Укажите API-ключ SKRIME',
       ovhCreds: 'Укажите application key, application secret и consumer key OVH',
       procloudCreds: 'Укажите логин и пароль OpenStack из RC-файла ProCloud',
       procloudWebCreds: 'Укажите и email, и пароль от кабинета — или ничего',

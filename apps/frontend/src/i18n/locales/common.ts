@@ -224,6 +224,7 @@ export const common = {
         ovh: 'OVH',
         procloud: 'ProCloud',
         infomaniak: 'Infomaniak',
+        skrime: 'SKRIME',
         manual: 'Manual',
       },
       rateSource: {
@@ -453,6 +454,7 @@ export const common = {
         ovh: 'OVH',
         procloud: 'ProCloud',
         infomaniak: 'Infomaniak',
+        skrime: 'SKRIME',
         manual: 'Ручной',
       },
       rateSource: {
