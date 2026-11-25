@@ -32,7 +32,10 @@ function parseDate(raw: string | undefined): Date | null {
 export function astravpsCountryCode(s: AstravpsService): string | undefined {
   const spec = s.spec?.location?.trim().toLowerCase();
   if (spec && /^[a-z]{2}$/.test(spec)) return spec.toUpperCase();
-  const fromNode = s.node?.trim().toLowerCase().match(/^([a-z]{2})\d/)?.[1];
+  const fromNode = s.node
+    ?.trim()
+    .toLowerCase()
+    .match(/^([a-z]{2})\d/)?.[1];
   return fromNode ? fromNode.toUpperCase() : undefined;
 }
 

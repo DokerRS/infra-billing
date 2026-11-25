@@ -98,9 +98,7 @@ export class IntezioConnector implements Connector {
   async fetchPayments(signal: AbortSignal): Promise<PaymentData[]> {
     const rows = await this.get<IntezioPayment[]>('/api/pay/list', signal);
     if (!Array.isArray(rows)) {
-      throw new Error(
-        `Intezio: unexpected /api/pay/list response (${describeIntezioShape(rows)})`,
-      );
+      throw new Error(`Intezio: unexpected /api/pay/list response (${describeIntezioShape(rows)})`);
     }
     const serviceIdsByName = new Map<string, string>();
     for (const s of await this.serviceRows(signal)) {
