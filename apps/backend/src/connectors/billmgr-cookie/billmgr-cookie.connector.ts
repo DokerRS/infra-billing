@@ -68,6 +68,14 @@ const ACCOUNT_INFO_FORBIDDEN_MESSAGE =
   'BILLmanager: func=whoami is not permitted for this account, so balance and currency are unavailable. ' +
   'Services and payments are still synced. Ask the hoster to grant the whoami right to restore the balance.';
 
+// A restricted client role can be refused *every* list func at once (seen live on a cookie session:
+// whoami, menu, vds, dedic, vhost, domain, certificate, payment and expense all answered
+// «недостаточно прав»). Each refusal is individually skippable, but together they mean nothing was
+// read — and returning an empty list would make the sync deactivate every service in the account.
+const ALL_FUNCS_REFUSED_MESSAGE =
+  'BILLmanager: the panel refused every service list for this account (no view rights), so nothing ' +
+  'was read. The sync was aborted to keep the services active — ask the hoster for service rights.';
+
 /**
  * A session the CGI no longer recognizes. BILLmanager reports it as an auth error on the data
  * func, and the codes are stable across locales ($object/$type), unlike the localized msg.
@@ -556,7 +564,11 @@ export class BillmgrCookieConnector implements Connector {
     await this.ensureSession(signal);
     const out: ServiceData[] = [];
     const seen = new Set<string>();
-    for (const { func, type } of await this.discoverItemFuncs(signal)) {
+    const itemFuncs = await this.discoverItemFuncs(signal);
+    // Refused because the account may not view them, vs. simply absent from this install. Only the
+    // former can mean "the account has services we were not allowed to read".
+    const refused: string[] = [];
+    for (const { func, type } of itemFuncs) {
       let rows: Record<string, unknown>[];
       try {
         // Paged: an install serves a list one page at a time, and reading only the first page
@@ -567,6 +579,7 @@ export class BillmgrCookieConnector implements Connector {
         // timeout, a filter the account cannot use) must fail the sync: silently dropping the
         // func's services would deactivate every one of them.
         if (!isFuncUnavailable(err)) throw err;
+        if (isPrivilegeError(err)) refused.push(func);
         this.logger.warn(`BILLmanager: func=${func} unavailable, skipped: ${billmgrError(err)}`);
         continue;
       }
@@ -576,6 +589,12 @@ export class BillmgrCookieConnector implements Connector {
         seen.add(svc.externalId);
         out.push(svc);
       }
+    }
+    // An empty result is honest when the item lists were merely absent from the install, but when
+    // every one of them was refused for lack of rights nothing was read at all — and reporting zero
+    // services would deactivate every service in the account.
+    if (out.length === 0 && itemFuncs.length > 0 && refused.length === itemFuncs.length) {
+      throw new Error(`${ALL_FUNCS_REFUSED_MESSAGE} (refused: ${refused.join(', ')})`);
     }
     return out;
   }

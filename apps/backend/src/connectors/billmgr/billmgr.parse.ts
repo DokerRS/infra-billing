@@ -76,11 +76,16 @@ export function isCaptchaError(err: unknown): boolean {
  * marks it with an access/privilege code in `$object`/`$type` (locale-independent); the message is
  * matched too because some installs only localize it. A half-authorized session (2FA pending) and a
  * restricted client/staff role both answer this way, so callers must not read it as "session dead"
- * nor as "account empty" — see the cookie connector, where it only costs the account info.
+ * nor as "account empty" — see the cookie connector, where it only costs the account info. Accepts
+ * the raw `doc.error` or an Error carrying it as `cause`.
  */
 export function isPrivilegeError(err: unknown): boolean {
-  if (!err || typeof err !== 'object') return false;
-  const e = err as Record<string, unknown>;
+  const e0 =
+    err instanceof Error && err.cause && typeof err.cause === 'object'
+      ? (err.cause as Record<string, unknown>)
+      : err;
+  if (!e0 || typeof e0 !== 'object') return false;
+  const e = e0 as Record<string, unknown>;
   const code = [e.$object, e.$type].filter((s): s is string => typeof s === 'string').join(' ');
   if (/access|privileg|permission|forbidden|denied|right/i.test(code)) return true;
   const msg = [val(e.msg), val(e.detail)]

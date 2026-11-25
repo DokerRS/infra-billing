@@ -13,6 +13,7 @@ import {
   isCaptchaError,
   isFuncUnavailable,
   isPaymentCredited,
+  isPrivilegeError,
   parseBillmgrDate,
   val,
 } from './billmgr.parse';
@@ -57,6 +58,14 @@ const AUTHINFO_TWO_FACTOR_MESSAGE =
 const CF_BLOCKED_MESSAGE =
   'BILLmanager: the request was blocked by Cloudflare in front of the panel and never reached BILLmanager. ' +
   'Ask the hoster to allow API access for this server (a WAF skip rule for /billmgr, or an IP allowlist).';
+
+// A restricted client role can be refused *every* list func at once (seen live: whoami, menu, vds,
+// dedic, vhost, domain, certificate, payment and expense all answered «недостаточно прав»). Each
+// refusal is individually skippable, but together they mean nothing was read — and returning an
+// empty list would make the sync deactivate every service in the account. Better a loud failure.
+const ALL_FUNCS_REFUSED_MESSAGE =
+  'BILLmanager: the panel refused every service list for this account (no view rights), so nothing ' +
+  'was read. The sync was aborted to keep the services active — ask the hoster for service rights.';
 
 /**
  * Cloudflare serves its own HTML instead of the panel's JSON when it blocks: bot protection renders
@@ -306,7 +315,10 @@ export class BillmgrConnector implements Connector {
       params: { func, ...auth, out: 'json', ...extra },
       signal,
     });
-    if (data?.doc?.error) throw new Error(`BILLmanager (${func}): ${billmgrError(data.doc.error)}`);
+    if (data?.doc?.error)
+      throw new Error(`BILLmanager (${func}): ${billmgrError(data.doc.error)}`, {
+        cause: data.doc.error,
+      });
     return data;
   }
 
@@ -483,7 +495,11 @@ export class BillmgrConnector implements Connector {
     // An item could show up under both the base func and its subtype; item ids are
     // install-wide, so dedupe by externalId.
     const seen = new Set<string>();
-    for (const { func, type } of await this.discoverItemFuncs(signal)) {
+    const itemFuncs = await this.discoverItemFuncs(signal);
+    // Refused because the account may not view them, vs. simply absent from this install. Only the
+    // former can mean "the account has services we were not allowed to read".
+    const refused: string[] = [];
+    for (const { func, type } of itemFuncs) {
       let rows: Record<string, unknown>[];
       try {
         // Paged: an install serves a list one page at a time, and reading only the first page
@@ -494,6 +510,7 @@ export class BillmgrConnector implements Connector {
         // timeout, a filter the account cannot use) must fail the sync: silently dropping the
         // func's services would deactivate every one of them.
         if (!isFuncUnavailable(err)) throw err;
+        if (isPrivilegeError(err)) refused.push(func);
         this.logger.warn(`BILLmanager: func=${func} unavailable, skipped: ${billmgrError(err)}`);
         continue;
       }
@@ -503,6 +520,12 @@ export class BillmgrConnector implements Connector {
         seen.add(svc.externalId);
         out.push(svc);
       }
+    }
+    // An empty result is honest when the item lists were merely absent from the install, but when
+    // every one of them was refused for lack of rights nothing was read at all — and reporting zero
+    // services would deactivate every service in the account.
+    if (out.length === 0 && refused.length === itemFuncs.length && itemFuncs.length > 0) {
+      throw new Error(`${ALL_FUNCS_REFUSED_MESSAGE} (refused: ${refused.join(', ')})`);
     }
     return out;
   }
