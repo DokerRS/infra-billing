@@ -76,6 +76,7 @@ export const DEFAULT_LOGIN_URLS: Record<string, string> = {
   nodehost: 'https://nodehost.cc',
   '1cent': 'https://bill.1cent.host',
   ovh: 'https://api.eu.ovhcloud.com/console/',
+  procloud: 'https://my.procloud.ru',
 };
 
 export const EMPTY_IDENTITY: IdentityFormValues = {
@@ -170,6 +171,33 @@ export const OVH_ENDPOINTS = [
 ];
 export const OVH_DEFAULT_ENDPOINT = OVH_ENDPOINTS[0];
 
+// ProCloud runs a separate OpenStack (and issues a separate API user) per location, so one provider
+// covers one location and its identity URL is part of the credentials. The list mirrors the
+// backend's allowlist — the OpenStack password is never sent anywhere else.
+export const PROCLOUD_IDENTITY_URLS = [
+  'https://identity.api.os.msk.3hcloud.com',
+  'https://identity.api.os.waw.3hcloud.com',
+  'https://identity.api.os.mnl.3hcloud.com',
+  'https://identity.api.os.mia.3hcloud.com',
+  'https://identity.api.os.mia2.3hcloud.com',
+  'https://identity.api.os.dfw.3hcloud.com',
+  'https://identity.api.os.sfo.3hcloud.com',
+  'https://identity.api.os.ala.3hcloud.com',
+];
+export const PROCLOUD_DEFAULT_IDENTITY_URL = PROCLOUD_IDENTITY_URLS[0];
+
+/** Location a ProCloud identity URL stands for, as shown in the picker. */
+export const PROCLOUD_LOCATION_LABELS: Record<string, string> = {
+  'https://identity.api.os.msk.3hcloud.com': 'Moscow',
+  'https://identity.api.os.waw.3hcloud.com': 'Warsaw',
+  'https://identity.api.os.mnl.3hcloud.com': 'Manila',
+  'https://identity.api.os.mia.3hcloud.com': 'Miami',
+  'https://identity.api.os.mia2.3hcloud.com': 'Miami-2',
+  'https://identity.api.os.dfw.3hcloud.com': 'Dallas',
+  'https://identity.api.os.sfo.3hcloud.com': 'San Francisco',
+  'https://identity.api.os.ala.3hcloud.com': 'Almaty',
+};
+
 const HOSTKEY_API_KEY_RE = /^[a-f0-9]{16}-[a-f0-9]{16}$/i;
 
 function normalizeHostkeyToken(raw: string): string {
@@ -235,6 +263,11 @@ export function validateAccountCredentials(
   if (requireCreds && kind === '1cent' && !v.token) return t('providers.err.cent1Token');
   if (requireCreds && kind === 'ovh' && !(v.token && v.secretKey && v.password))
     return t('providers.err.ovhCreds');
+  if (requireCreds && kind === 'procloud' && !(v.username && v.password))
+    return t('providers.err.procloudCreds');
+  // The panel sign-in is optional, but half of it is useless; on edit a blank password keeps the stored one.
+  if (requireCreds && kind === 'procloud' && Boolean(v.email) !== Boolean(v.webPassword))
+    return t('providers.err.procloudWebCreds');
   if (requireCreds && kind === 'billmgr-cookie' && !(v.baseUrl && v.cookie))
     return t('providers.err.billmgrCookieCreds');
   return null;

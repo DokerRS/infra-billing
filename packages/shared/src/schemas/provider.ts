@@ -95,6 +95,9 @@ export type ProviderCredentialsReveal = z.infer<typeof providerCredentialsReveal
 // HostVDS uses `username` + `password` (the OpenStack user from the panel's API tab), plus
 // optional `baseUrl` (https://hostvds.com or https://cloudcore.ru) picking the brand, and an
 // optional website sign-in — `email` + `webPassword` (+ `totpSecret`) — for balance and payments.
+// ProCloud uses `username` + `password` (the OpenStack user of one location's RC file), `baseUrl`
+// picking the location and `projectName` overriding the Keystone project, plus an optional panel
+// sign-in — `email` + `webPassword` — for the balance, the prices and the ledger.
 // None are ever echoed back.
 const credentialFields = {
   token: z.string().min(1).describe('API token').optional(),
@@ -112,9 +115,10 @@ const credentialFields = {
   apiPassword: z.string().min(1).describe('Beget API password').optional(),
   // Porkbun / Spaceship: the secret API key, paired with `token` (the API key).
   secretKey: z.string().min(1).describe('Secret API key').optional(),
-  // HostVDS: website sign-in (the OpenStack user has no billing access). Enables balance sync.
-  email: z.string().email().describe('HostVDS website sign-in email').optional(),
-  webPassword: z.string().min(1).describe('HostVDS website sign-in password').optional(),
+  // HostVDS / ProCloud: website (panel) sign-in — their API user has no billing access. Enables
+  // the balance, and the prices / ledger.
+  email: z.string().email().describe('Website sign-in email').optional(),
+  webPassword: z.string().min(1).describe('Website sign-in password').optional(),
   useCatalogNames: z.boolean().describe('OpenRouter: use catalog display names').optional(),
   // BILLmanager cookie auth: the browser's session cookie (kept verbatim, `billmgrses5` carries the
   // session id) plus the User-Agent it was copied from — the panel rejects a mismatched client.

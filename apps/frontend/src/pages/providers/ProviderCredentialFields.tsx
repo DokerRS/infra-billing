@@ -35,6 +35,9 @@ import {
   aezaBranchOrigin,
   OVH_DEFAULT_ENDPOINT,
   OVH_ENDPOINTS,
+  PROCLOUD_DEFAULT_IDENTITY_URL,
+  PROCLOUD_IDENTITY_URLS,
+  PROCLOUD_LOCATION_LABELS,
   type StoredSecretFlags,
 } from './providerForm';
 
@@ -60,6 +63,14 @@ const OVH_ENDPOINT_OPTIONS = OVH_ENDPOINTS.map((url) => ({
   value: url,
   label: url,
   hint: OVH_ENDPOINT_SUBSIDIARIES[url] ?? undefined,
+}));
+
+// ProCloud issues a separate API user per location, so the location is chosen here rather than
+// typed: the OpenStack password must not reach a host outside the allowlist.
+const PROCLOUD_IDENTITY_OPTIONS = PROCLOUD_IDENTITY_URLS.map((url) => ({
+  value: url,
+  label: url,
+  hint: PROCLOUD_LOCATION_LABELS[url] ?? undefined,
 }));
 
 function SecretFormField({
@@ -1007,6 +1018,87 @@ export function ProviderCredentialFields({
             hasStored={storedSecrets?.hasTotpSecret}
             reveal={reveal}
             placeholder={storedSecrets?.hasTotpSecret ? undefined : optionalPh}
+          />
+        </Field>
+      </>
+    );
+  }
+
+  if (kind === 'procloud') {
+    return (
+      <>
+        <Field
+          id="cred-username"
+          label={t('providers.field.procloudLogin')}
+          description={t('providers.field.procloudLoginDesc')}
+          link="https://my.procloud.ru"
+        >
+          <Input
+            id="cred-username"
+            placeholder="api-281402-…"
+            autoComplete="off"
+            {...form.register('username')}
+          />
+        </Field>
+        <Field id="cred-password" label={t('providers.field.password')}>
+          <SecretFormField
+            form={form}
+            name="password"
+            id="cred-password"
+            hasStored={storedSecrets?.hasPassword}
+            reveal={reveal}
+          />
+        </Field>
+        <Field
+          id="cred-base-url"
+          label={t('providers.field.procloudLocation')}
+          description={t('providers.field.procloudLocationDesc')}
+        >
+          <Controller
+            control={form.control}
+            name="baseUrl"
+            render={({ field }) => (
+              <Combobox
+                id="cred-base-url"
+                value={field.value || PROCLOUD_DEFAULT_IDENTITY_URL}
+                onChange={field.onChange}
+                options={PROCLOUD_IDENTITY_OPTIONS}
+                mono
+              />
+            )}
+          />
+        </Field>
+        <Field
+          id="cred-project-name"
+          label={t('providers.field.procloudProject')}
+          description={t('providers.field.procloudProjectDesc')}
+        >
+          <Input
+            id="cred-project-name"
+            placeholder={optionalPh}
+            {...form.register('projectName')}
+          />
+        </Field>
+        <Field
+          id="cred-email"
+          label={t('providers.field.procloudEmail')}
+          description={t('providers.field.procloudEmailDesc')}
+        >
+          <Input
+            id="cred-email"
+            type="email"
+            placeholder={optionalPh}
+            {...form.register('email')}
+          />
+        </Field>
+        <Field id="cred-web-password" label={t('providers.field.procloudWebPassword')}>
+          <SecretFormField
+            form={form}
+            name="webPassword"
+            id="cred-web-password"
+            hasStored={storedSecrets?.hasWebPassword}
+            reveal={reveal}
+            placeholder={storedSecrets?.hasWebPassword ? undefined : optionalPh}
           />
         </Field>
       </>

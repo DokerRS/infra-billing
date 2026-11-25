@@ -18,13 +18,13 @@
 - **Провайдеры с API:** Timeweb Cloud, Hetzner Cloud, Hostkey (InvAPI), netcup, HostBill,
   ISPsystem BILLmanager, Selectel, 4VPS.SU, Netlen, Beget Cloud, Porkbun, Spaceship, Vultr,
   Linode, Aeza, VDSina, Cloudflare, StormWall, NetAngels, Yandex Cloud, Double Servers, OpenRouter,
-  HostUp, HostVDS / CloudCore, DataPacket, Tube-Hosting, Gcore, NodeHost, 1Cent, OVH, плюс
+  HostUp, HostVDS / CloudCore, DataPacket, Tube-Hosting, Gcore, NodeHost, 1Cent, OVH, ProCloud, плюс
   **ISP BILLmanager (cookie)** — вход по браузерной куке. Плюс **Manual** — провайдеры
   без API ведутся руками.
 - **Автосинк** (по расписанию + кнопкой): баланс + валюта аккаунта, список серверов/услуг, даты
   следующих списаний; история баланса по дням (снапшоты).
 - **Импорт платежей** там, где API отдаёт реестр: пополнения и списания (BILLmanager, Netlen,
-  Vultr, Aeza, VDSina, Double Servers, HostVDS, Tube-Hosting, Gcore, NodeHost, 1Cent), пополнения и счета
+  Vultr, Aeza, VDSina, Double Servers, HostVDS, Tube-Hosting, Gcore, NodeHost, 1Cent, ProCloud), пополнения и счета
   (Linode), счета и пополнения (OVH), оплаченные счета (HostBill, DataPacket), платежи (HostUp), потребление (Selectel,
   Yandex Cloud, OpenRouter), история биллинга (Cloudflare, best-effort). Ручные платежи — в журнале.
 - **Аналитика:** месячные/годовые расходы, разрезы по провайдеру / стране / типу / валюте, прогноз
@@ -447,6 +447,17 @@ curl -H "Authorization: Bearer ib_…" https://infra-billing/api/providers
   баланса пропускаются — это оплата уже учтённого счёта. Права ключа: только на чтение
   (`/me`, `/me/bill*`, `/me/ovhAccount*`, `/services*`) — продление, отключение и оплата через
   панель не выдаются.
+- **ProCloud** (procloud.ru) — логин и пароль OpenStack из OpenRC-файла локации (кабинет → доступ к
+  API): ProCloud — white-label облака на OpenStack, и синк ходит в Keystone v3 (токен в заголовке
+  `X-Subject-Token`) и Nova `servers/detail`. Отдельный API-пользователь выдаётся на локацию, поэтому
+  один провайдер = одна локация (Москва, Варшава, Манила, Майами, Майами-2, Даллас, Сан-Франциско,
+  Алма-Ата — хост Keystone выбирается из списка). Проект Keystone берётся из логина (`api-281402-…` →
+  `proj-281402`), при нестандартном укажите его вручную. Серверы: страна по локации, статус, флейвор и
+  адреса. OpenStack цен не отдаёт, публичного каталога тарифов у ProCloud нет — поэтому баланс,
+  месячную цену каждого сервера и историю платежей даёт кабинет: дополнительно укажите email и пароль
+  входа в my.procloud.ru (логинится в Keycloak, как сайт). Без них серверы синкаются без цен, а баланса
+  нет. Валюта — RUB. Импортируются пополнения и счета из истории биллинга; текущее накопление за
+  идущий период (`unbilled`) пропускается — это ещё не списанные деньги.
 - **Manual** — без API, всё вводится руками.
 
 ## Telegram-уведомления

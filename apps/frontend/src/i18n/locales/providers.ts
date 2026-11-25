@@ -124,6 +124,19 @@ export const providers = {
       hostvdsEmailDesc:
         'Optional: the email and password you sign in to the website with. Adds the balance and the payment history (top-ups, daily charges per server). Accounts that sign in with Google/Telegram have no password — leave empty.',
       hostvdsWebPassword: 'Website password',
+      procloudLogin: 'OpenStack login',
+      procloudLoginDesc:
+        'ProCloud cabinet → API access: download the OpenRC file of a location and copy its OS_USERNAME (api-…) and OS_PASSWORD. One provider covers one location — ProCloud issues a separate API user per location.',
+      procloudLocation: 'Location',
+      procloudLocationDesc:
+        "The location whose RC file you copied (its Keystone host). Servers of other locations need another account with that location's API user.",
+      procloudProject: 'Keystone project',
+      procloudProjectDesc:
+        'Optional: OS_PROJECT_NAME from the RC file (proj-…). By default it is derived from the login.',
+      procloudEmail: 'Cabinet sign-in email',
+      procloudEmailDesc:
+        'Optional: the email and password you sign in to my.procloud.ru with. Adds the balance, the monthly price of each server and the payment history. Leave empty to sync servers without prices.',
+      procloudWebPassword: 'Cabinet password',
       apiTokenDescDatapacket:
         'DataPacket client panel → Security → Add API key (read-only is enough). Syncs servers with their subscription price and location, other subscription items (IPs, traffic, DDoS) as one service per subscription, and paid invoices. The API has no account balance.',
       apiTokenDescGcore:
@@ -226,6 +239,8 @@ export const providers = {
       nodehostToken: 'Enter the NodeHost API key',
       cent1Token: 'Enter the 1Cent API key',
       ovhCreds: 'Enter the OVH application key, application secret and consumer key',
+      procloudCreds: 'Enter the OpenStack login and password from the ProCloud RC file',
+      procloudWebCreds: 'Enter both the cabinet email and password, or neither',
       billmgrCookieCreds: 'Enter the panel URL and the session cookie',
       yandexKey: 'Paste the Yandex Cloud service account authorized key (JSON)',
     },
@@ -434,6 +449,19 @@ export const providers = {
       hostvdsEmailDesc:
         'Необязательно: email и пароль, с которыми вы входите на сайт. Добавляют баланс и историю платежей (пополнения, списания по серверам за день). У аккаунтов со входом через Google/Telegram пароля нет — оставьте пустым.',
       hostvdsWebPassword: 'Пароль от сайта',
+      procloudLogin: 'Логин OpenStack',
+      procloudLoginDesc:
+        'Кабинет ProCloud → доступ к API: скачайте OpenRC-файл локации и возьмите из него OS_USERNAME (api-…) и OS_PASSWORD. Один провайдер — одна локация: ProCloud выдаёт отдельного API-пользователя для каждой.',
+      procloudLocation: 'Локация',
+      procloudLocationDesc:
+        'Локация, из чьего RC-файла взяты логин и пароль (её Keystone-хост). Серверы других локаций требуют отдельного аккаунта с API-пользователем этой локации.',
+      procloudProject: 'Проект Keystone',
+      procloudProjectDesc:
+        'Необязательно: OS_PROJECT_NAME из RC-файла (proj-…). По умолчанию вычисляется из логина.',
+      procloudEmail: 'Email для входа в кабинет',
+      procloudEmailDesc:
+        'Необязательно: email и пароль, с которыми вы входите в my.procloud.ru. Добавляют баланс, месячную цену каждого сервера и историю платежей. Оставьте пустым, чтобы синкать серверы без цен.',
+      procloudWebPassword: 'Пароль от кабинета',
       apiTokenDescDatapacket:
         'Панель DataPacket → Security → Add API key (достаточно read-only). Синхронизируются серверы с ценой из подписки и локацией, прочие позиции подписки (IP, трафик, DDoS) — одной услугой на подписку, и оплаченные счета. Баланса аккаунта в API нет.',
       apiTokenDescGcore:
@@ -536,6 +564,8 @@ export const providers = {
       nodehostToken: 'Укажите API-ключ NodeHost',
       cent1Token: 'Укажите API-ключ 1Cent',
       ovhCreds: 'Укажите application key, application secret и consumer key OVH',
+      procloudCreds: 'Укажите логин и пароль OpenStack из RC-файла ProCloud',
+      procloudWebCreds: 'Укажите и email, и пароль от кабинета — или ничего',
       billmgrCookieCreds: 'Укажите адрес панели и cookie сессии',
       yandexKey: 'Вставьте авторизованный ключ сервисного аккаунта Yandex Cloud (JSON)',
     },

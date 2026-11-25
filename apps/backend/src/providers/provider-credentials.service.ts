@@ -12,6 +12,7 @@ import {
 } from '@connectors/openrouter/openrouter.types';
 import { HOSTVDS_BRANDS } from '@connectors/hostvds/hostvds.types';
 import { isOvhEndpoint, OVH_ENDPOINTS } from '@connectors/ovh/ovh.types';
+import { PROCLOUD_REGIONS } from '@connectors/procloud/procloud.types';
 import { VDSINA_BASE_URLS } from '@connectors/vdsina/vdsina.types';
 import type { YandexCredentials } from '../connectors/yandex/yandex.types';
 import { CryptoService } from '../crypto/crypto.service';
@@ -84,6 +85,11 @@ export class ProviderCredentialsService {
       const c = this.decodeCredentials(enc);
       return { baseUrl: c.baseUrl ?? null, username: c.username ?? null, email: c.email ?? null };
     }
+    if (kind === 'procloud') {
+      // The OpenStack login and the picked location are public; so is the panel email.
+      const c = this.decodeCredentials(enc);
+      return { baseUrl: c.baseUrl ?? null, username: c.username ?? null, email: c.email ?? null };
+    }
     return {};
   }
 
@@ -148,6 +154,13 @@ export class ProviderCredentialsService {
         hasPassword: Boolean(c.password),
         hasWebPassword: Boolean(c.webPassword),
         hasTotpSecret: Boolean(c.totpSecret),
+      };
+    }
+    if (kind === 'procloud') {
+      // password — the OpenStack user's; webPassword — the optional panel sign-in.
+      return {
+        hasPassword: Boolean(c.password),
+        hasWebPassword: Boolean(c.webPassword),
       };
     }
     if (kind === 'billmgr' || kind === 'hostbill') {
@@ -256,6 +269,12 @@ export class ProviderCredentialsService {
       if (c.password) out.password = c.password;
       if (c.webPassword) out.webPassword = c.webPassword;
       if (c.totpSecret) out.totpSecret = c.totpSecret;
+      return out;
+    }
+    if (kind === 'procloud') {
+      const out: ProviderCredentialsReveal = {};
+      if (c.password) out.password = c.password;
+      if (c.webPassword) out.webPassword = c.webPassword;
       return out;
     }
     if (kind === 'billmgr' || kind === 'hostbill') {
@@ -422,6 +441,43 @@ export class ProviderCredentialsService {
       if (baseUrl && !HOSTVDS_BRANDS[baseUrl]) {
         throw new BadRequestException(
           `HostVDS base URL must be ${Object.keys(HOSTVDS_BRANDS).join(' or ')}`,
+        );
+      }
+      if (baseUrl) creds.baseUrl = baseUrl;
+      return this.crypto.encrypt(JSON.stringify(creds));
+    }
+    if (kind === 'procloud') {
+      // OpenStack user of one location: JSON { username, password, baseUrl?, projectName?, email?,
+      // webPassword? }. The identity URL picks the location and is allowlisted, so the password can
+      // never reach a foreign host. The optional panel sign-in adds the balance, the prices and the
+      // ledger; without it the servers sync unpriced.
+      const supplied =
+        dto.username ||
+        dto.password ||
+        dto.baseUrl ||
+        dto.projectName ||
+        dto.email ||
+        dto.webPassword;
+      if (!supplied) return null;
+      const base = this.decodeCredentials(existingEnc);
+      const username = dto.username ?? base.username;
+      const password = dto.password ?? base.password;
+      if (!username || !password) {
+        throw new BadRequestException('Provide the ProCloud OpenStack login and password together');
+      }
+      const creds: Record<string, string> = { username, password };
+      const email = dto.email ?? base.email;
+      const webPassword = dto.webPassword ?? base.webPassword;
+      if (Boolean(email) !== Boolean(webPassword)) {
+        throw new BadRequestException('Provide the ProCloud panel email and password together');
+      }
+      if (email && webPassword) Object.assign(creds, { email, webPassword });
+      const projectName = dto.projectName ?? base.projectName;
+      if (projectName) creds.projectName = projectName;
+      const baseUrl = (dto.baseUrl ?? base.baseUrl)?.replace(/\/+$/, '');
+      if (baseUrl && !PROCLOUD_REGIONS[baseUrl]) {
+        throw new BadRequestException(
+          `ProCloud identity URL must be one of: ${Object.keys(PROCLOUD_REGIONS).join(', ')}`,
         );
       }
       if (baseUrl) creds.baseUrl = baseUrl;

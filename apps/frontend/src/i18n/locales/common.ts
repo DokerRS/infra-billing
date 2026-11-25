@@ -231,6 +231,7 @@ export const common = {
         nodehost: 'NodeHost',
         '1cent': '1Cent',
         ovh: 'OVH',
+        procloud: 'ProCloud',
         manual: 'Manual',
       },
       rateSource: {
@@ -467,6 +468,7 @@ export const common = {
         nodehost: 'NodeHost',
         '1cent': '1Cent',
         ovh: 'OVH',
+        procloud: 'ProCloud',
         manual: 'Ручной',
       },
       rateSource: {

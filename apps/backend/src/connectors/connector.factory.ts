@@ -35,6 +35,8 @@ import { OvhConnector } from './ovh/ovh.connector';
 import type { OvhCredentials } from './ovh/ovh.types';
 import { PorkbunConnector } from './porkbun/porkbun.connector';
 import type { PorkbunCredentials } from './porkbun/porkbun.types';
+import { ProcloudConnector } from './procloud/procloud.connector';
+import type { ProcloudCredentials } from './procloud/procloud.types';
 import { SelectelConnector } from './selectel/selectel.connector';
 import type { SelectelCredentials } from './selectel/selectel.types';
 import { SpaceshipConnector } from './spaceship/spaceship.connector';
@@ -131,6 +133,11 @@ export class ConnectorFactory {
         // HostVDS / CloudCore secret is JSON: { username, password, baseUrl? } — the OpenStack
         // user from the panel's API tab; baseUrl picks the brand.
         return new HostvdsConnector(JSON.parse(token) as HostvdsCredentials);
+      case 'procloud':
+        // ProCloud secret is JSON: { username, password, baseUrl?, projectName?, email?,
+        // webPassword? } — the OpenStack user of one location's RC file; the optional panel
+        // login adds the balance, the prices and the ledger.
+        return new ProcloudConnector(JSON.parse(token) as ProcloudCredentials);
       case 'datapacket':
         // DataPacket secret is the raw API key (single string, sent as the Authorization Bearer header).
         return new DatapacketConnector(token);
