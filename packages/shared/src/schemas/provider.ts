@@ -98,6 +98,8 @@ export type ProviderCredentialsReveal = z.infer<typeof providerCredentialsReveal
 // ProCloud uses `username` + `password` (the OpenStack user of one location's RC file), `baseUrl`
 // picking the location and `projectName` overriding the Keystone project, plus an optional panel
 // sign-in — `email` + `webPassword` — for the balance, the prices and the ledger.
+// Infomaniak uses `token` alone (a personal API token sent as `Authorization: Bearer`); the API has
+// no balance and no payment ledger, so nothing else is needed.
 // None are ever echoed back.
 const credentialFields = {
   token: z.string().min(1).describe('API token').optional(),

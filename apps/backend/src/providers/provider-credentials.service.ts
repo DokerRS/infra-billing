@@ -119,7 +119,8 @@ export class ProviderCredentialsService {
       kind === 'datapacket' ||
       kind === 'gcore' ||
       kind === 'nodehost' ||
-      kind === '1cent'
+      kind === '1cent' ||
+      kind === 'infomaniak'
     ) {
       return { hasToken: true };
     }
@@ -205,7 +206,8 @@ export class ProviderCredentialsService {
       kind === 'datapacket' ||
       kind === 'gcore' ||
       kind === 'nodehost' ||
-      kind === '1cent'
+      kind === '1cent' ||
+      kind === 'infomaniak'
     ) {
       const token = this.decryptRaw(enc);
       return token ? { token } : {};

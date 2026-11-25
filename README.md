@@ -18,7 +18,8 @@
 - **Провайдеры с API:** Timeweb Cloud, Hetzner Cloud, Hostkey (InvAPI), netcup, HostBill,
   ISPsystem BILLmanager, Selectel, 4VPS.SU, Netlen, Beget Cloud, Porkbun, Spaceship, Vultr,
   Linode, Aeza, VDSina, Cloudflare, StormWall, NetAngels, Yandex Cloud, Double Servers, OpenRouter,
-  HostUp, HostVDS / CloudCore, DataPacket, Tube-Hosting, Gcore, NodeHost, 1Cent, OVH, ProCloud, плюс
+  HostUp, HostVDS / CloudCore, DataPacket, Tube-Hosting, Gcore, NodeHost, 1Cent, OVH, ProCloud,
+  Infomaniak, плюс
   **ISP BILLmanager (cookie)** — вход по браузерной куке. Плюс **Manual** — провайдеры
   без API ведутся руками.
 - **Автосинк** (по расписанию + кнопкой): баланс + валюта аккаунта, список серверов/услуг, даты
@@ -449,6 +450,14 @@ curl -H "Authorization: Bearer ib_…" https://infra-billing/api/providers
   входа в my.procloud.ru (логинится в Keycloak, как сайт). Без них серверы синкаются без цен, а баланса
   нет. Валюта — RUB. Импортируются пополнения и счета из истории биллинга; текущее накопление за
   идущий период (`unbilled`) пропускается — это ещё не списанные деньги.
+- **Infomaniak** (infomaniak.com) — личный API-токен из [менеджера](https://manager.infomaniak.com/v3/ng/profile/user/token/list)
+  (профиль → API-токены), scope `products:read`, для валюты аккаунта ещё `userinfo:read`; запросы идут
+  в `https://api.infomaniak.com` с заголовком `Authorization: Bearer`. Услуги — из `/1/products`
+  (постранично, 200 на страницу): домены, хостинг, kSuite, Public Cloud, сертификаты и прочее; имя —
+  клиентское название услуги, дата списания — `expired_at`, тип — `service_name`. Цена в API не
+  отдаётся (есть только калькуляторы каталога), поэтому стоимость не заполняется. Баланса, кредитов и
+  истории платежей в API нет вовсе — импорт платежей для провайдера недоступен. Валюта определяется по
+  стране профиля: CHF для Швейцарии и Лихтенштейна, иначе EUR.
 - **Manual** — без API, всё вводится руками.
 
 ## Telegram-уведомления

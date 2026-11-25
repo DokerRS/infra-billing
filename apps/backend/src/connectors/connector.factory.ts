@@ -24,6 +24,7 @@ import type { HostbillCredentials } from './hostbill/hostbill.types';
 import { HostvdsConnector } from './hostvds/hostvds.connector';
 import type { HostvdsCredentials } from './hostvds/hostvds.types';
 import { HostupConnector } from './hostup/hostup.connector';
+import { InfomaniakConnector } from './infomaniak/infomaniak.connector';
 import { LinodeConnector } from './linode/linode.connector';
 import { NetcupConnector } from './netcup/netcup.connector';
 import { NetangelsConnector } from './netangels/netangels.connector';
@@ -129,6 +130,9 @@ export class ConnectorFactory {
       case 'hostup':
         // HostUp secret is the raw API key (single string, sent as the Authorization Bearer header).
         return new HostupConnector(token);
+      case 'infomaniak':
+        // Infomaniak secret is the raw personal access token (Authorization Bearer header).
+        return new InfomaniakConnector(token);
       case 'hostvds':
         // HostVDS / CloudCore secret is JSON: { username, password, baseUrl? } — the OpenStack
         // user from the panel's API tab; baseUrl picks the brand.

@@ -223,6 +223,7 @@ export const common = {
         '1cent': '1Cent',
         ovh: 'OVH',
         procloud: 'ProCloud',
+        infomaniak: 'Infomaniak',
         manual: 'Manual',
       },
       rateSource: {
@@ -451,6 +452,7 @@ export const common = {
         '1cent': '1Cent',
         ovh: 'OVH',
         procloud: 'ProCloud',
+        infomaniak: 'Infomaniak',
         manual: 'Ручной',
       },
       rateSource: {

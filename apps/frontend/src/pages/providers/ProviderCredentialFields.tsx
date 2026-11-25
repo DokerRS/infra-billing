@@ -811,6 +811,25 @@ export function ProviderCredentialFields({
     );
   }
 
+  if (kind === 'infomaniak') {
+    return (
+      <Field
+        id="cred-token"
+        label={t('providers.field.apiToken')}
+        description={t('providers.field.apiTokenDescInfomaniak')}
+        link="https://manager.infomaniak.com/v3/ng/profile/user/token/list"
+      >
+        <SecretFormField
+          form={form}
+          name="token"
+          id="cred-token"
+          hasStored={storedSecrets?.hasToken}
+          reveal={reveal}
+        />
+      </Field>
+    );
+  }
+
   if (kind === 'ovh') {
     return (
       <>
