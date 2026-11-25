@@ -70,6 +70,25 @@ export function isCaptchaError(err: unknown): boolean {
   return /captcha|капч/i.test(hay);
 }
 
+/**
+ * The session is alive but the user behind it is not allowed to call this function:
+ * «У вас недостаточно прав на выполнение функции 'whoami'» / "insufficient privileges". BILLmanager
+ * marks it with an access/privilege code in `$object`/`$type` (locale-independent); the message is
+ * matched too because some installs only localize it. A half-authorized session (2FA pending) and a
+ * restricted client/staff role both answer this way, so callers must not read it as "session dead"
+ * nor as "account empty" — see the cookie connector, where it only costs the account info.
+ */
+export function isPrivilegeError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as Record<string, unknown>;
+  const code = [e.$object, e.$type].filter((s): s is string => typeof s === 'string').join(' ');
+  if (/access|privileg|permission|forbidden|denied|right/i.test(code)) return true;
+  const msg = [val(e.msg), val(e.detail)]
+    .filter((s): s is string => typeof s === 'string')
+    .join(' ');
+  return /недостаточно прав|insufficient (right|privileg)|not enough right/i.test(msg);
+}
+
 // BILLmanager error → short human message (msg/detail/$object), not the raw JSON.
 export function billmgrError(err: unknown): string {
   if (err && typeof err === 'object') {
