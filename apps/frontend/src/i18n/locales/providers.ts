@@ -130,6 +130,18 @@ export const providers = {
       procloudWebPassword: 'Cabinet password',
       procloudWebPasswordDesc:
         'The password of the same sign-in. 2FA is not supported — the sync signs in the way the website does.',
+      astravpsEmail: 'Cabinet sign-in email',
+      astravpsEmailDesc:
+        'The email you sign in to astravps.co with. AstraVPS publishes no API, so the cabinet is the only source of prices — there is no key to fill in.',
+      astravpsWebPassword: 'Cabinet password',
+      astravpsWebPasswordDesc:
+        'The password of the same sign-in. 2FA is not supported — the sync signs in the way the website does.',
+      intezioEmail: 'Cabinet sign-in email',
+      intezioEmailDesc:
+        'The email you sign in to intezio.net with. Intezio publishes no API, so the cabinet is the only source of prices — there is no key to fill in. Balance, servers and the payment history are read from it.',
+      intezioWebPassword: 'Cabinet password',
+      intezioWebPasswordDesc:
+        'The password of the same sign-in. 2FA is not supported — the sync signs in the way the website does.',
       apiTokenDescDatapacket:
         'DataPacket client panel → Security → Add API key (read-only is enough). Syncs servers with their subscription price and location, other subscription items (IPs, traffic, DDoS) as one service per subscription, and paid invoices. The API has no account balance.',
       apiTokenDescGcore:
@@ -239,6 +251,8 @@ export const providers = {
       skrimeToken: 'Enter the SKRIME API key',
       ovhCreds: 'Enter the OVH application key, application secret and consumer key',
       procloudCreds: 'Enter the email and password you sign in to my.procloud.ru with',
+      astravpsCreds: 'Enter the email and password you sign in to astravps.co with',
+      intezioCreds: 'Enter the email and password you sign in to intezio.net with',
       billmgrCookieCreds: 'Enter the panel URL and the session cookie',
       yandexKey: 'Paste the Yandex Cloud service account authorized key (JSON)',
     },
@@ -453,6 +467,18 @@ export const providers = {
       procloudWebPassword: 'Пароль от кабинета',
       procloudWebPasswordDesc:
         'Пароль от этого же входа. 2FA не поддерживается: синк входит так же, как сайт.',
+      astravpsEmail: 'Email для входа в кабинет',
+      astravpsEmailDesc:
+        'Email, с которым вы входите в astravps.co. Публичного API у AstraVPS нет, поэтому кабинет — единственный источник цен, ключ заполнять не нужно.',
+      astravpsWebPassword: 'Пароль от кабинета',
+      astravpsWebPasswordDesc:
+        'Пароль от этого же входа. 2FA не поддерживается: синк входит так же, как сайт.',
+      intezioEmail: 'Email для входа в кабинет',
+      intezioEmailDesc:
+        'Email, с которым вы входите в intezio.net. Публичного API у Intezio нет, поэтому кабинет — единственный источник цен, ключ заполнять не нужно. Из него читаются баланс, серверы и история платежей.',
+      intezioWebPassword: 'Пароль от кабинета',
+      intezioWebPasswordDesc:
+        'Пароль от этого же входа. 2FA не поддерживается: синк входит так же, как сайт.',
       apiTokenDescDatapacket:
         'Панель DataPacket → Security → Add API key (достаточно read-only). Синхронизируются серверы с ценой из подписки и локацией, прочие позиции подписки (IP, трафик, DDoS) — одной услугой на подписку, и оплаченные счета. Баланса аккаунта в API нет.',
       apiTokenDescGcore:
@@ -562,6 +588,8 @@ export const providers = {
       skrimeToken: 'Укажите API-ключ SKRIME',
       ovhCreds: 'Укажите application key, application secret и consumer key OVH',
       procloudCreds: 'Укажите email и пароль от кабинета my.procloud.ru',
+      astravpsCreds: 'Укажите email и пароль от кабинета astravps.co',
+      intezioCreds: 'Укажите email и пароль от кабинета intezio.net',
       billmgrCookieCreds: 'Укажите адрес панели и cookie сессии',
       yandexKey: 'Вставьте авторизованный ключ сервисного аккаунта Yandex Cloud (JSON)',
     },

@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { AezaConnector } from './aeza/aeza.connector';
 import { parseAezaCredentials } from './aeza/aeza.types';
+import { AstravpsConnector } from './astravps/astravps.connector';
+import type { AstravpsCredentials } from './astravps/astravps.types';
 import { FourVpsConnector } from './4vps/4vps.connector';
 import type { FourVpsCredentials } from './4vps/4vps.types';
 import { BegetConnector } from './beget/beget.connector';
@@ -25,6 +27,8 @@ import { HostvdsConnector } from './hostvds/hostvds.connector';
 import type { HostvdsCredentials } from './hostvds/hostvds.types';
 import { HostupConnector } from './hostup/hostup.connector';
 import { InfomaniakConnector } from './infomaniak/infomaniak.connector';
+import { IntezioConnector } from './intezio/intezio.connector';
+import type { IntezioCredentials } from './intezio/intezio.types';
 import { LinodeConnector } from './linode/linode.connector';
 import { NetcupConnector } from './netcup/netcup.connector';
 import { NetangelsConnector } from './netangels/netangels.connector';
@@ -164,6 +168,14 @@ export class ConnectorFactory {
       case 'skrime':
         // SKRIME secret is the raw API key (single string, sent as the Authorization Bearer header).
         return new SkrimeConnector(token);
+      case 'astravps':
+        // AstraVPS secret is JSON: { email, webPassword } — the astravps.co cabinet sign-in; the
+        // hoster publishes no API, so the cabinet's own endpoints are the only data source.
+        return new AstravpsConnector(JSON.parse(token) as AstravpsCredentials);
+      case 'intezio':
+        // Intezio secret is JSON: { email, webPassword } — the intezio.net cabinet sign-in, which
+        // is the only surface the hoster exposes.
+        return new IntezioConnector(JSON.parse(token) as IntezioCredentials);
       default:
         throw new Error(`Connector for kind="${kind}" is not supported`);
     }

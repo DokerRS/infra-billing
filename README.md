@@ -19,14 +19,14 @@
   ISPsystem BILLmanager, Selectel, 4VPS.SU, Netlen, Beget Cloud, Porkbun, Spaceship, Vultr,
   Linode, Aeza, VDSina, Cloudflare, StormWall, NetAngels, Yandex Cloud, Double Servers, OpenRouter,
   HostUp, HostVDS / CloudCore, DataPacket, Tube-Hosting, Gcore, NodeHost, 1Cent, OVH, ProCloud,
-  Infomaniak, SKRIME, плюс
+  Infomaniak, SKRIME, AstraVPS, Intezio, плюс
   **ISP BILLmanager (cookie)** — вход по браузерной куке. Плюс **Manual** — провайдеры
   без API ведутся руками.
 - **Автосинк** (по расписанию + кнопкой): баланс + валюта аккаунта, список серверов/услуг, даты
   следующих списаний; история баланса по дням (снапшоты).
 - **Импорт платежей** там, где API отдаёт реестр: пополнения и списания (BILLmanager, Netlen,
   Vultr, Aeza, VDSina, Double Servers, HostVDS, Tube-Hosting, Gcore, NodeHost, 1Cent, ProCloud,
-  SKRIME), пополнения и счета
+  SKRIME, AstraVPS, Intezio), пополнения и счета
   (Linode), счета и пополнения (OVH), оплаченные счета (HostBill, DataPacket), платежи (HostUp), потребление (Selectel,
   Yandex Cloud, OpenRouter), история биллинга (Cloudflare, best-effort). Ручные платежи — в журнале.
 - **Аналитика:** месячные/годовые расходы, разрезы по провайдеру / стране / типу / валюте, прогноз
@@ -469,6 +469,19 @@ curl -H "Authorization: Bearer ib_…" https://infra-billing/api/providers
   за период в `price`, сам период в месяцах — в `duration`, окончание — в `expireAt`, тип услуги —
   в `type` (server, dedicated, webspace, domain, dns, ssl…). Из `/account/transactions`
   импортируются пополнения (`credit`) и списания (`transaction`). Валюта — EUR.
+- **AstraVPS** (astravps.co) — публичного API нет, поэтому синк входит в [кабинет](https://astravps.co)
+  email и паролем (как сайт) и читает его собственные JSON-эндпоинты через cookie-сессию. Баланс —
+  `/api/me`, серверы — `/api/services` (цена за месяц `monthly`, окончание `expires_at`, локация из
+  `spec.location`), реестр — `/api/operations`: `renew`/`provision` и прочие платные действия
+  импортируются как списания с привязкой к серверу, пополнения — как пополнения. Пароль сервера из
+  ответа не сохраняется. Двухфакторная защита входа не поддерживается. Валюта — RUB.
+- **Intezio** (intezio.net) — публичного API нет, синк так же входит в [кабинет](https://intezio.net)
+  email и паролем. Баланс — `/api/auth/me`, серверы — `/api/services/user`: цена месяца в `cost`,
+  окончание периода в `paid_up_to`, страна — по локации плана (`edges.service.location_name`).
+  Реестр — `/api/pay/list`: сумма в нём знаковая (минус — списание, плюс — пополнение), тем же
+  знаком кабинет сам и различает строки; списания привязываются к серверу по его короткому имени
+  в описании («Продление сервера pl на 1 мес.»). Пароль сервера не сохраняется. Двухфакторная
+  защита входа не поддерживается. Валюта — RUB.
 - **Manual** — без API, всё вводится руками.
 
 ## Telegram-уведомления
