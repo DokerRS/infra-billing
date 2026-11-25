@@ -1,10 +1,37 @@
-import { ServiceData } from '../connector.interface';
-import { InfomaniakProduct } from './infomaniak.types';
+import { PaymentData, ServiceData } from '../connector.interface';
+import { InfomaniakInvoice, InfomaniakProduct } from './infomaniak.types';
 
 function fromUnix(ts?: number): Date | null {
   if (ts == null) return null;
   const d = new Date(ts * 1000);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * An invoice bills a whole billing account at once and the payload carries no per-product prices,
+ * so it is imported as a `charge` that is only linked to a service when the invoice has exactly one
+ * line. That is still the only way Infomaniak's real spend becomes visible, since the API publishes
+ * no per-product price.
+ */
+export function mapInfomaniakInvoice(inv: InfomaniakInvoice): PaymentData | null {
+  if (!inv.number) return null;
+  const date = inv.createdAt != null ? new Date(inv.createdAt) : null;
+  if (!date || Number.isNaN(date.getTime())) return null;
+  // A cancelled or zero invoice never charged the account.
+  const status = inv.status?.toLowerCase();
+  if (status && status !== 'paid' && status !== 'validated' && status !== 'active') return null;
+  const amount = (inv.amountInclTax ?? inv.amount)?.abs();
+  if (!amount || amount.isZero() || !amount.isFinite()) return null;
+  const onlyLine = inv.lines.length === 1 ? inv.lines[0] : undefined;
+  return {
+    externalId: `invoice:${inv.number}`,
+    type: 'charge',
+    amount,
+    currency: inv.currency ?? 'EUR',
+    date,
+    description: `Infomaniak invoice ${inv.number}`,
+    serviceExternalId: onlyLine?.productRef,
+  };
 }
 
 /**

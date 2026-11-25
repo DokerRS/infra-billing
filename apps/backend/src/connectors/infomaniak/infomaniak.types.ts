@@ -1,3 +1,4 @@
+import Decimal from 'decimal.js';
 import { z } from 'zod';
 
 // Infomaniak Public Cloud API shapes (https://developer.infomaniak.com/docs/api, machine-readable
@@ -51,8 +52,10 @@ export const infomaniakErrorSchema = z.object({
 /** `GET /2/profile` — the credential probe, and where the billing country is read from. */
 export const infomaniakProfileSchema = z
   .object({
+    current_account_id: z.union([z.number(), z.string()]).optional(),
     preferences: z
       .object({
+        current_account_id: z.union([z.number(), z.string()]).optional(),
         country: z
           .object({
             short_name: z.string().optional(),
@@ -146,6 +149,142 @@ export const infomaniakProductsResponseSchema = z.preprocess(
 );
 
 export type InfomaniakProfile = z.infer<typeof infomaniakProfileSchema>;
+
+/**
+ * `GET /1/invoicing/{account}/invoice/list` — invoices of one billing account.
+ *
+ * This route is **not** in the public OpenAPI spec (nor is any other `/1/invoicing/*` route), so
+ * nothing here is guaranteed. The field names come from the `woob`/`weboob` Infomaniak billing
+ * module, which has parsed Infomaniak's billing JSON since 2017 and was patched against it as
+ * recently as 2021 — the only field-verified source in the wild. Everything is read field by field
+ * and every field is optional, so when Infomaniak renames something the cost simply goes missing
+ * instead of the sync failing.
+ */
+export interface InfomaniakInvoice {
+  /** Invoice number, e.g. `202612345`. */
+  number?: string;
+  /** Invoice date. The API has delivered this as a unix timestamp. */
+  createdAt?: number;
+  /** Total incl. tax. */
+  amountInclTax?: Decimal;
+  /** Amount excl. tax, when the API sends it separately. */
+  amount?: Decimal;
+  currency?: string;
+  /** Paid / cancelled / … — only used to skip invoices that were never charged. */
+  status?: string;
+  /** Line items, if the payload carries them. Never assumed to exist. */
+  lines: InfomaniakInvoiceLine[];
+}
+
+/** One billed position of an invoice, when the response exposes them. */
+export interface InfomaniakInvoiceLine {
+  description?: string;
+  /** What the line bills, e.g. `vps`, `cloud`, `domain`. */
+  productType?: string;
+  /** Product/service reference, used to attach the line to a service. */
+  productRef?: string;
+  amount?: Decimal;
+  currency?: string;
+  /** Subscription period the line covers, in months. */
+  periodMonths?: number;
+}
+
+/** Decimal from anything the API might deliver for money: number, numeric string, or null. */
+function asMoney(value: unknown): Decimal | undefined {
+  if (typeof value === 'number') return Number.isFinite(value) ? new Decimal(value) : undefined;
+  if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) {
+    return new Decimal(value.trim());
+  }
+  return undefined;
+}
+
+/** Money and currency, which the API nests under `amount` and (older builds) sends flat. */
+function readMoney(row: Record<string, unknown>): {
+  amount?: Decimal;
+  inclTax?: Decimal;
+  currency?: string;
+} {
+  const nested =
+    row.amount && typeof row.amount === 'object' && !Array.isArray(row.amount)
+      ? (row.amount as Record<string, unknown>)
+      : undefined;
+  const currency =
+    asText(nested?.currency_code) ??
+    asText(nested?.currency) ??
+    asText(row.currency_code) ??
+    asText(row.currency);
+  return {
+    inclTax: asMoney(nested?.amount_incl_tax) ?? asMoney(row.amount_incl_tax) ?? asMoney(row.total),
+    amount: asMoney(nested?.amount) ?? asMoney(row.amount_excl_tax) ?? asMoney(row.amount_ht),
+    currency,
+  };
+}
+
+/** Unix seconds or a date string → Date. */
+function readDate(value: unknown): Date | undefined {
+  const ts = asNumber(value);
+  if (ts != null) {
+    // Some builds deliver milliseconds; a plausible invoice is never older than 1990 in seconds.
+    const d = new Date(ts > 1e11 ? ts : ts * 1000);
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  }
+  const s = asText(value);
+  if (!s) return undefined;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
+
+/**
+ * Read one invoice row. Never fails, and returns null only for a row that is not an object — the
+ * same rule as products, so an undocumented shape costs a field, never a sync.
+ */
+export function readInfomaniakInvoice(raw: unknown): InfomaniakInvoice | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const p = raw as Record<string, unknown>;
+  // The verified shape nests the number and the PDF link under `document`.
+  const doc =
+    p.document && typeof p.document === 'object' && !Array.isArray(p.document)
+      ? (p.document as Record<string, unknown>)
+      : undefined;
+  const money = readMoney(p);
+  const linesRaw = Array.isArray(p.lines)
+    ? p.lines
+    : Array.isArray(p.items)
+      ? p.items
+      : Array.isArray(p.products)
+        ? p.products
+        : [];
+  const lines: InfomaniakInvoiceLine[] = [];
+  for (const rawLine of linesRaw) {
+    if (!rawLine || typeof rawLine !== 'object' || Array.isArray(rawLine)) continue;
+    const l = rawLine as Record<string, unknown>;
+    const lineMoney = readMoney(l);
+    lines.push({
+      description: asText(l.description) ?? asText(l.label) ?? asText(l.name),
+      productType: asText(l.product_type) ?? asText(l.type) ?? asText(l.service_name),
+      productRef:
+        asText(l.product_id) ?? asText(l.service_id) ?? asText(l.reference) ?? asText(l.unique_id),
+      amount: lineMoney.inclTax ?? lineMoney.amount,
+      currency: lineMoney.currency ?? money.currency,
+      periodMonths: asNumber(l.period) ?? asNumber(l.months) ?? asNumber(l.unit),
+    });
+  }
+  return {
+    number: asString(doc?.id) ?? asString(p.id) ?? asString(p.reference) ?? asString(p.number),
+    createdAt: readDate(p.created_at)?.getTime(),
+    amountInclTax: money.inclTax,
+    amount: money.amount,
+    currency: money.currency,
+    status: asText(p.status) ?? asText(p.state),
+    lines,
+  };
+}
+
+/**
+ * Accepts the `{ result, data }` envelope and a bare array, like the products response. Only the
+ * container is checked; rows go through `readInfomaniakInvoice`.
+ */
+export const infomaniakInvoicesResponseSchema = infomaniakProductsResponseSchema;
 
 /** Short summary of a failed parse — enough to tell which field the API changed on. */
 export function describeInfomaniakIssue(error: z.ZodError): string {
