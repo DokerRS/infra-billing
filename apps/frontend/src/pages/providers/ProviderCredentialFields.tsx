@@ -1060,7 +1060,12 @@ export function ProviderCredentialFields({
           description={t('providers.field.procloudEmailDesc')}
           link="https://my.procloud.ru"
         >
-          <Input id="cred-email" type="email" placeholder="you@example.com" {...form.register('email')} />
+          <Input
+            id="cred-email"
+            type="email"
+            placeholder="you@example.com"
+            {...form.register('email')}
+          />
         </Field>
         <Field
           id="cred-web-password"

@@ -44,7 +44,12 @@ export function splitBilledItems(
       byServer.set(
         item.uuid,
         prev
-          ? { ...item, price: money(prev.price)?.plus(money(item.price) ?? 0).toString() }
+          ? {
+              ...item,
+              price: money(prev.price)
+                ?.plus(money(item.price) ?? 0)
+                .toString(),
+            }
           : item,
       );
     } else {
@@ -56,7 +61,8 @@ export function splitBilledItems(
 
 /** Service type of a billed resource that is not a server. */
 export function billedServiceType(item: ProcloudBilledItem): string {
-  const text = `${item.productGroup ?? ''} ${item.product ?? ''} ${item.productPl ?? ''} ${item.name ?? ''}`.toLowerCase();
+  const text =
+    `${item.productGroup ?? ''} ${item.product ?? ''} ${item.productPl ?? ''} ${item.name ?? ''}`.toLowerCase();
   if (/ip[-_ ]?address|ip-адрес|адрес/i.test(text)) return 'other';
   if (/disk|диск|storage|хранили|backup|резерв|object/i.test(text)) return 'storage';
   if (/server|сервер|vps|vm/i.test(text)) return 'vps';
