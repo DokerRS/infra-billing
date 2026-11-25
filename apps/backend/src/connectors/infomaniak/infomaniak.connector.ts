@@ -3,6 +3,7 @@ import { REQUEST_TIMEOUT_MS } from '../common/http';
 import { Account, Connector, ServiceData } from '../connector.interface';
 import { mapInfomaniakProduct } from './infomaniak.mapper';
 import {
+  describeInfomaniakIssue,
   infomaniakErrorSchema,
   infomaniakProfileSchema,
   infomaniakProductsResponseSchema,
@@ -64,9 +65,12 @@ export class InfomaniakConnector implements Connector {
     // No balance endpoint exists; /2/profile doubles as the token check and tells the billing
     // country, which is what picks CHF vs EUR for the account.
     const { data } = await this.http.get('/2/profile', { signal });
+    // Only the currency is read here, so a shape change must not fail the sync — the token already
+    // proved valid, otherwise the call would have answered 401.
     const parsed = infomaniakProfileSchema.safeParse(data?.data ?? data);
-    if (!parsed.success) throw new Error('Infomaniak: unexpected /2/profile response');
-    const country = parsed.data.preferences?.country?.short_name?.toUpperCase();
+    const country = parsed.success
+      ? parsed.data.preferences?.country?.short_name?.toUpperCase()
+      : undefined;
     return {
       balance: null,
       currency: (country && CURRENCY_BY_COUNTRY[country]) || DEFAULT_CURRENCY,
@@ -81,7 +85,14 @@ export class InfomaniakConnector implements Connector {
         signal,
       });
       const parsed = infomaniakProductsResponseSchema.safeParse(data);
-      if (!parsed.success) throw new Error('Infomaniak: unexpected /1/products response');
+      if (!parsed.success) {
+        const shape = data && typeof data === 'object' ? Object.keys(data).join(',') : typeof data;
+        throw new Error(
+          `Infomaniak: unexpected /1/products response [${describeInfomaniakIssue(
+            parsed.error,
+          )}] (fields: ${shape})`,
+        );
+      }
       const batch = parsed.data.data;
       products.push(...batch);
       const pages = parsed.data.pages;

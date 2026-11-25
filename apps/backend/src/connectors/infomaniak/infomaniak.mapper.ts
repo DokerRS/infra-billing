@@ -13,11 +13,13 @@ function fromUnix(ts?: number | null): Date | null {
  * is the renewal date, and `service_name` is the product class used as the service type.
  */
 export function mapInfomaniakProduct(p: InfomaniakProduct): ServiceData {
-  const name = p.customer_name || p.internal_name || `${p.service_name} #${p.id}`;
+  const externalId = p.unique_id ?? p.id;
+  const name =
+    p.customer_name || p.internal_name || `${p.service_name ?? 'product'} #${externalId ?? '?'}`;
   return {
-    externalId: String(p.unique_id ?? p.id),
+    externalId: externalId ?? `product-${name}`,
     name,
-    type: p.service_name,
+    type: p.service_name ?? 'product',
     nextBilling: fromUnix(p.expired_at),
     meta: {
       serviceId: p.service_id,
