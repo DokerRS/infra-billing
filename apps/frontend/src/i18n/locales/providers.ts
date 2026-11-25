@@ -146,7 +146,7 @@ export const providers = {
       apiTokenDescCent1:
         '1Cent.host cabinet → Settings → API: create a key (`cx_…`), read-only is enough. Syncs the balance (RUB), servers with the renewal price, expiry date and location, plus the balance ledger (top-ups and charges).',
       apiTokenDescInfomaniak:
-        'Infomaniak Manager → your profile → API tokens: create a token with the `products:read` scope (add `userinfo:read` so the account currency is detected, and `invoicing:invoice:read` to import invoices as charges). Syncs subscriptions (domains, hosting, kSuite, Public Cloud…) with their expiry date. The API exposes no per-service price and no balance, so costs stay manual while the invoice ledger is imported.',
+        'Infomaniak Manager → your profile → API tokens: create a token with the `products:read` scope (add `userinfo:read` so the account currency is detected, and `invoicing:invoice:read` for prices and history). Syncs subscriptions (domains, hosting, kSuite, Public Cloud…) with their expiry date. The product endpoint carries no price, so each service cost and billing period is taken from the matching invoice line; without the invoicing scope services sync without a price and you set it manually. The same invoices are imported as charges linked to the service. No balance or credits in the API.',
       apiTokenDescSkrime:
         'SKRIME dashboard → API: create an API key. Syncs the balance (EUR), services with their price, expiry date and IP addresses, plus the account transactions (top-ups and charges).',
       ovhApplicationKey: 'Application key',
@@ -477,7 +477,7 @@ export const providers = {
       apiTokenDescCent1:
         'Кабинет 1Cent.host → Настройки → API: создайте ключ (`cx_…`), достаточно ключа только на чтение. Синхронизируются баланс (RUB), серверы с ценой продления, датой окончания и локацией, а также операции по балансу (пополнения и списания).',
       apiTokenDescInfomaniak:
-        'Менеджер Infomaniak → ваш профиль → API-токены: создайте токен со scope `products:read` (добавьте `userinfo:read`, чтобы определять валюту аккаунта, и `invoicing:invoice:read`, чтобы подтягивать счета как списания). Синхронизируются подписки (домены, хостинг, kSuite, Public Cloud…) с датой окончания. Цен за услугу и баланса в API нет, поэтому стоимость остаётся ручной, а история подтягивается из счетов.',
+        'Менеджер Infomaniak → ваш профиль → API-токены: создайте токен со scope `products:read` (добавьте `userinfo:read`, чтобы определять валюту аккаунта, и `invoicing:invoice:read` — для цен и истории). Синхронизируются подписки (домены, хостинг, kSuite, Public Cloud…) с датой окончания. Цен в списке услуг нет, поэтому стоимость и период каждой услуги берутся из строки счёта по совпадению товара; без scope invoicing услуги синхронизируются без цены и стоимость задаётся вручную. Те же счета импортируются как списания с привязкой к услуге. Баланса и кредитов в API нет.',
       apiTokenDescSkrime:
         'Дашборд SKRIME → API: создайте API-ключ. Синхронизируются баланс (EUR), услуги с ценой, датой окончания и IP-адресами, а также операции по счёту (пополнения и списания).',
       ovhApplicationKey: 'Application key',

@@ -2,7 +2,11 @@ import axios, { type AxiosInstance } from 'axios';
 import { Logger } from '@nestjs/common';
 import { REQUEST_TIMEOUT_MS } from '../common/http';
 import { Account, Connector, PaymentData, ServiceData } from '../connector.interface';
-import { mapInfomaniakInvoice, mapInfomaniakProduct } from './infomaniak.mapper';
+import {
+  mapInfomaniakInvoice,
+  mapInfomaniakProduct,
+  latestInfomaniakLinesByProduct,
+} from './infomaniak.mapper';
 import {
   describeInfomaniakIssue,
   describeInfomaniakShape,
@@ -10,6 +14,9 @@ import {
   infomaniakInvoicesResponseSchema,
   infomaniakProfileSchema,
   infomaniakProductsResponseSchema,
+  type InfomaniakInvoice,
+  type InfomaniakInvoiceLine,
+  type InfomaniakProduct,
   readInfomaniakInvoice,
   readInfomaniakProduct,
 } from './infomaniak.types';
@@ -32,16 +39,25 @@ const DEFAULT_CURRENCY = 'EUR';
  *
  * `GET /1/products` lists every subscription of the account across all services (hosting, domain,
  * cloud, dedicated_server, ksuite, …), which is the whole inventory in one paginated call.
- * The API exposes no balance and no per-product price (only per-catalogue calculators), so the
- * balance is null and services carry no cost. The billing account behind the Manager does have an
- * invoice ledger, reachable through the undocumented `/1/invoicing/*` routes, which is where
- * `fetchPayments` reads the real spend from.
+ * A product row carries no price, but the invoice ledger does: every invoice line names the product
+ * it bills (`item_id`, the same id `/1/products` reports as `id`) together with the amount and the
+ * period it covers. So the ledger — reachable through the undocumented `/1/invoicing/*` routes with
+ * the `invoicing:invoice:read` scope — is read once per sync and used both to price the services and
+ * to import the spend history. Without that scope the services still sync, just without a cost.
+ * The API exposes no balance at all, so the balance is null.
  */
 export class InfomaniakConnector implements Connector {
   private readonly logger = new Logger(InfomaniakConnector.name);
   private readonly http: AxiosInstance;
   /** Billing account id for the `/1/invoicing/{account}/*` routes; resolved on first use. */
   private accountId?: string;
+  /**
+   * The invoice ledger, fetched once per sync. A connector instance lives for a single sync run, so
+   * this only avoids asking for the same pages twice — services and payments read the same data.
+   */
+  private invoices?: InfomaniakInvoice[];
+  /** Invoice `item_id` → the service externalId of that product, to link charges to services. */
+  private readonly externalIdByProductRef = new Map<string, string>();
 
   constructor(token: string) {
     this.http = axios.create({
@@ -84,7 +100,7 @@ export class InfomaniakConnector implements Connector {
   }
 
   async fetchServices(signal: AbortSignal): Promise<ServiceData[]> {
-    const services: ServiceData[] = [];
+    const products: InfomaniakProduct[] = [];
     for (let page = 1; page <= MAX_PAGES; page++) {
       const { data } = await this.http.get('/1/products', {
         params: { page, per_page: PAGE_SIZE, with: 'fqdn' },
@@ -107,30 +123,66 @@ export class InfomaniakConnector implements Connector {
       const batch = parsed.data.data;
       for (const raw of batch) {
         const product = readInfomaniakProduct(raw);
-        if (product) services.push(mapInfomaniakProduct(product));
+        if (product) products.push(product);
       }
       const pages = Number(parsed.data.pages);
       if (Number.isFinite(pages) ? page >= pages : batch.length < PAGE_SIZE) break;
+    }
+
+    // Prices live only in the invoice ledger, and that route needs a scope the token may not have.
+    // Losing the price must never lose the inventory, so a ledger failure is logged and ignored.
+    let lineByProductRef = new Map<string, InfomaniakInvoiceLine>();
+    try {
+      lineByProductRef = latestInfomaniakLinesByProduct(await this.loadInvoices(signal));
+    } catch (e) {
+      this.logger.warn(
+        `Infomaniak: invoice ledger unavailable, services synced without cost: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+    }
+
+    const services: ServiceData[] = [];
+    for (const product of products) {
+      const service = mapInfomaniakProduct(product, this.lineFor(product, lineByProductRef));
+      services.push(service);
+      // Invoice lines reference the product `id`, while the service is keyed by `unique_id`; keep
+      // the translation so imported charges can be attached to the right service.
+      if (product.id) this.externalIdByProductRef.set(product.id, service.externalId);
     }
     return services;
   }
 
   /**
-   * Invoices from the undocumented `GET /1/invoicing/{account}/invoice/list`.
+   * Invoices from the undocumented `GET /1/invoicing/{account}/invoice/list`, which also carry the
+   * per-product prices `fetchServices` reads.
    *
-   * Infomaniak's public API has no expense ledger, but the billing account behind the Manager does,
-   * and the `invoicing:invoice:read` scope grants it. An invoice is a total for a whole billing
-   * account and carries no per-product prices, so it is imported as a `charge` — which makes the
-   * real monthly spend visible even though per-service prices stay manual. A failure here only loses
-   * the ledger: the sync service keeps invoices non-fatal, so services still sync.
+   * An invoice is a total for a whole billing account, so it is imported as a `charge`; it is linked
+   * to a service when it has a single line naming a product the account owns. A failure here only
+   * loses the ledger: the sync service keeps invoices non-fatal, so services still sync.
    */
   async fetchPayments(signal: AbortSignal): Promise<PaymentData[]> {
+    const payments: PaymentData[] = [];
+    for (const invoice of await this.loadInvoices(signal)) {
+      const payment = mapInfomaniakInvoice(invoice);
+      if (!payment) continue;
+      if (payment.serviceExternalId) {
+        payment.serviceExternalId =
+          this.externalIdByProductRef.get(payment.serviceExternalId) ?? undefined;
+      }
+      payments.push(payment);
+    }
+    return payments;
+  }
+
+  /** The invoice ledger of this account, fetched once and reused by services and payments. */
+  private async loadInvoices(signal: AbortSignal): Promise<InfomaniakInvoice[]> {
+    if (this.invoices) return this.invoices;
     const accountId = await this.resolveAccountId(signal);
     if (!accountId) {
-      this.logger.warn('Infomaniak: billing account id unavailable, invoices not imported');
-      return [];
+      throw new Error('billing account id unavailable');
     }
-    const payments: PaymentData[] = [];
+    const invoices: InfomaniakInvoice[] = [];
     for (let page = 1; page <= MAX_PAGES; page++) {
       const { data } = await this.http.get(`/1/invoicing/${accountId}/invoice/list`, {
         params: { page, per_page: INVOICE_PAGE_SIZE },
@@ -152,30 +204,45 @@ export class InfomaniakConnector implements Connector {
       const batch = parsed.data.data;
       for (const raw of batch) {
         const invoice = readInfomaniakInvoice(raw);
-        const payment = invoice ? mapInfomaniakInvoice(invoice) : null;
-        if (payment) payments.push(payment);
+        if (invoice) invoices.push(invoice);
       }
       const pages = Number(parsed.data.pages);
       if (Number.isFinite(pages) ? page >= pages : batch.length < INVOICE_PAGE_SIZE) break;
     }
-    return payments;
+    this.invoices = invoices;
+    return invoices;
+  }
+
+  /**
+   * The line that prices a product: invoice lines reference a product by its `id`, which is what
+   * `latestInfomaniakLinesByProduct` keys them by.
+   */
+  private lineFor(
+    product: InfomaniakProduct,
+    byProductRef: Map<string, InfomaniakInvoiceLine>,
+  ): InfomaniakInvoiceLine | undefined {
+    return product.id ? byProductRef.get(product.id) : undefined;
   }
 
   /** `GET /2/profile`, parsed leniently — the token already proved valid if the call returned. */
   private async readProfile(signal: AbortSignal) {
     const { data } = await this.http.get('/2/profile', { signal });
-    const parsed = infomaniakProfileSchema.safeParse(data?.data ?? data);
+    const parsed = infomaniakProfileSchema.safeParse(data);
     return parsed.success ? parsed.data : {};
   }
 
   /**
-   * The billing account that invoices belong to. `/2/profile` reports it as `current_account_id`;
-   * a token without that field falls back to the single account of `GET /1/accounts`.
+   * The billing account that invoices belong to. `/2/profile` reports it as `current_account_id`,
+   * nested under `preferences.account` on current builds; a token without that field falls back to
+   * the single account of `GET /1/accounts`.
    */
   private async resolveAccountId(signal: AbortSignal): Promise<string | undefined> {
     if (this.accountId) return this.accountId;
     const profile = await this.readProfile(signal);
-    const fromProfile = profile.current_account_id ?? profile.preferences?.current_account_id;
+    const fromProfile =
+      profile.current_account_id ??
+      profile.preferences?.current_account_id ??
+      profile.preferences?.account?.current_account_id;
     let resolved = fromProfile != null ? String(fromProfile) : undefined;
     if (!resolved) {
       const { data } = await this.http.get('/1/accounts', { signal });

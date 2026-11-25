@@ -38,6 +38,21 @@ function asText(value: unknown): string | undefined {
   return s ? s : undefined;
 }
 
+/**
+ * Invoice line descriptions arrive as HTML (`<br/>` between the product, its spec and the renewal
+ * note), which would be stored verbatim in the payment description.
+ */
+function stripHtml(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const text = value
+    .replace(/<br\s*\/?>/gi, ' | ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text ? text : undefined;
+}
+
 /** Every response is wrapped: `{ result, data }`; a failure is `{ result: 'error', error }`. */
 export const infomaniakErrorSchema = z.object({
   result: z.string().optional(),
@@ -49,24 +64,43 @@ export const infomaniakErrorSchema = z.object({
     .optional(),
 });
 
-/** `GET /2/profile` — the credential probe, and where the billing country is read from. */
-export const infomaniakProfileSchema = z
-  .object({
-    current_account_id: z.union([z.number(), z.string()]).optional(),
-    preferences: z
-      .object({
-        current_account_id: z.union([z.number(), z.string()]).optional(),
-        country: z
-          .object({
-            short_name: z.string().optional(),
-          })
-          .passthrough()
-          .optional(),
-      })
-      .passthrough()
-      .optional(),
-  })
-  .passthrough();
+/**
+ * `GET /2/profile` — the credential probe, and where the billing country is read from.
+ *
+ * The live payload nests the active account one level deeper than the older builds did
+ * (`preferences.account.current_account_id`), so all three known locations are accepted. The route
+ * wraps the profile in the usual `{ result, data }` envelope, which the schema unwraps so both a
+ * wrapped and a bare profile parse.
+ */
+export const infomaniakProfileSchema = z.preprocess(
+  (value) =>
+    value && typeof value === 'object' && !Array.isArray(value) && 'data' in value
+      ? (value as { data: unknown }).data
+      : value,
+  z
+    .object({
+      current_account_id: z.union([z.number(), z.string()]).optional(),
+      preferences: z
+        .object({
+          current_account_id: z.union([z.number(), z.string()]).optional(),
+          account: z
+            .object({
+              current_account_id: z.union([z.number(), z.string()]).optional(),
+            })
+            .passthrough()
+            .optional(),
+          country: z
+            .object({
+              short_name: z.string().optional(),
+            })
+            .passthrough()
+            .optional(),
+        })
+        .passthrough()
+        .optional(),
+    })
+    .passthrough(),
+);
 
 /** One subscription of any Infomaniak service, as read out of `GET /1/products`. */
 export interface InfomaniakProduct {
@@ -181,12 +215,22 @@ export interface InfomaniakInvoiceLine {
   description?: string;
   /** What the line bills, e.g. `vps`, `cloud`, `domain`. */
   productType?: string;
-  /** Product/service reference, used to attach the line to a service. */
+  /**
+   * Product reference, used to attach the line to a service. On the live API this is `item_id`,
+   * which is the same id `GET /1/products` reports as the row's `id`.
+   */
   productRef?: string;
+  /** Infomaniak's service-class id (`service_id`, e.g. 25 for `cloud`), shared by all products. */
+  serviceId?: string;
   amount?: Decimal;
   currency?: string;
-  /** Subscription period the line covers, in months. */
+  /** Subscription period the line covers, in months, when the API states it as a number. */
   periodMonths?: number;
+  /** Billing period the line covers, from `amount.period`. */
+  periodStart?: number;
+  periodEnd?: number;
+  /** Line status (`payed` on the live API), used to skip lines that were never charged. */
+  status?: string;
 }
 
 /** Decimal from anything the API might deliver for money: number, numeric string, or null. */
@@ -234,6 +278,11 @@ function readDate(value: unknown): Date | undefined {
   return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
+/** Unix seconds or a date string → epoch ms, for spans that are compared rather than shown. */
+function readUnix(value: unknown): number | undefined {
+  return readDate(value)?.getTime();
+}
+
 /**
  * Read one invoice row. Never fails, and returns null only for a row that is not an object — the
  * same rule as products, so an undocumented shape costs a field, never a sync.
@@ -259,14 +308,36 @@ export function readInfomaniakInvoice(raw: unknown): InfomaniakInvoice | null {
     if (!rawLine || typeof rawLine !== 'object' || Array.isArray(rawLine)) continue;
     const l = rawLine as Record<string, unknown>;
     const lineMoney = readMoney(l);
+    const lineNested =
+      l.amount && typeof l.amount === 'object' && !Array.isArray(l.amount)
+        ? (l.amount as Record<string, unknown>)
+        : undefined;
+    const linePeriod =
+      lineNested?.period &&
+      typeof lineNested.period === 'object' &&
+      !Array.isArray(lineNested.period)
+        ? (lineNested.period as Record<string, unknown>)
+        : undefined;
     lines.push({
-      description: asText(l.description) ?? asText(l.label) ?? asText(l.name),
+      // `detail` is the human-readable position, which Infomaniak formats with HTML line breaks.
+      description:
+        asText(l.description) ?? asText(l.label) ?? asText(l.name) ?? stripHtml(asText(l.detail)),
       productType: asText(l.product_type) ?? asText(l.type) ?? asText(l.service_name),
+      // `item_id` is the product id from /1/products. `product_id`/`reference` are kept for the
+      // older builds; the bare `service_id` is deliberately not a fallback — it is Infomaniak's
+      // service-class id (identical for every product of one kind), so it matches no service.
       productRef:
-        asText(l.product_id) ?? asText(l.service_id) ?? asText(l.reference) ?? asText(l.unique_id),
+        asString(l.item_id) ??
+        asString(l.product_id) ??
+        asString(l.reference) ??
+        asText(l.unique_id),
+      serviceId: asString(l.service_id),
       amount: lineMoney.inclTax ?? lineMoney.amount,
       currency: lineMoney.currency ?? money.currency,
       periodMonths: asNumber(l.period) ?? asNumber(l.months) ?? asNumber(l.unit),
+      periodStart: readUnix(linePeriod?.start),
+      periodEnd: readUnix(linePeriod?.end),
+      status: asText(l.status) ?? asText(l.state),
     });
   }
   return {
