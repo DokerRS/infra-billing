@@ -11,6 +11,7 @@ import {
   firstNumber,
   isCaptchaError,
   isPaymentCredited,
+  isPrivilegeError,
   parseBillmgrDate,
   val,
 } from '../billmgr/billmgr.parse';
@@ -58,6 +59,15 @@ const TOTP_FAILED_MESSAGE =
   'your authenticator app) and the server clock synchronization.';
 
 /**
+ * func=whoami answered «У вас недостаточно прав на выполнение функции 'whoami'». The session is
+ * alive — BILLmanager recognized it and refused a single function — so the sync loses the balance
+ * and the account currency, nothing else. Reported once per run instead of failing the sync.
+ */
+const ACCOUNT_INFO_FORBIDDEN_MESSAGE =
+  'BILLmanager: func=whoami is not permitted for this account, so balance and currency are unavailable. ' +
+  'Services and payments are still synced. Ask the hoster to grant the whoami right to restore the balance.';
+
+/**
  * A session the CGI no longer recognizes. BILLmanager reports it as an auth error on the data
  * func, and the codes are stable across locales ($object/$type), unlike the localized msg.
  * `forbidden_auth_method` is the API-allowlist refusal, which a cookie sync cannot fix — but it
@@ -91,6 +101,9 @@ export class BillmgrCookieConnector implements Connector {
   private cookie: string;
   private sessionId: string | null;
   private whoamiDoc: BillmgrDoc | null = null; // cached by the auth-verification probe
+  // whoami is refused for this account (see ACCOUNT_INFO_FORBIDDEN_MESSAGE). The session itself is
+  // fine — BILLmanager answered as an authenticated user — so the rest of the sync must go on.
+  private whoamiForbidden = false;
   // One renewal per run: if a func still comes back rejected after a fresh session, the cookie
   // itself is the problem and re-authenticating again would just loop.
   private refreshAttempted = false;
@@ -140,37 +153,70 @@ export class BillmgrCookieConnector implements Connector {
 
   /**
    * Validate the pasted session up front with func=whoami — the same probe the API connector uses,
-   * and cached for fetchAccount so a valid cookie costs one extra request per run at most.
+   * and cached for fetchAccount so a valid cookie costs one extra request per run at most. An
+   * account without the whoami right is probed with func=menu instead and remembered as such, so
+   * the probe stays one request per run.
    */
   private async ensureSession(signal: AbortSignal): Promise<Record<string, string>> {
-    if (this.sessionId) {
-      if (!this.whoamiDoc) await this.probe(signal);
-      return this.authParams();
-    }
-    throw new Error(NO_SESSION_COOKIE_MESSAGE);
+    if (!this.sessionId) throw new Error(NO_SESSION_COOKIE_MESSAGE);
+    if (!this.whoamiDoc && !this.whoamiForbidden) await this.probe(signal);
+    return this.authParams();
   }
 
   /** func=whoami against the current session; caches the doc and turns a rejected session into a renewal. */
-  private async probe(signal: AbortSignal): Promise<BillmgrDoc> {
-    const data = await this.raw('whoami', signal);
-    const verdict = this.inspect(data);
-    if (verdict.state === 'ok') {
-      this.whoamiDoc = (data ?? null) as BillmgrDoc | null;
-      return this.whoamiDoc as BillmgrDoc;
+  private async probe(signal: AbortSignal): Promise<BillmgrDoc | null> {
+    const firstDoc = await this.raw('whoami', signal);
+    const first = this.inspect(firstDoc);
+    if (first.state === 'ok') return this.adoptWhoami(firstDoc);
+    if (first.state === 'error' && first.privilege) {
+      this.forbidWhoami(first.message);
+      await this.verifySession(signal);
+      return null;
     }
-    if (verdict.state === 'error') {
-      throw new Error(`BILLmanager (whoami): ${verdict.message}`);
-    }
+    if (first.state === 'error') throw new Error(`BILLmanager (whoami): ${first.message}`);
     await this.refresh(signal);
     const renewed = await this.raw('whoami', signal);
     const after = this.inspect(renewed);
-    if (after.state !== 'ok') {
-      throw new Error(
-        after.state === 'error' ? `BILLmanager (whoami): ${after.message}` : COOKIE_EXPIRED_MESSAGE,
-      );
+    if (after.state === 'ok') return this.adoptWhoami(renewed);
+    if (after.state === 'error' && after.privilege) {
+      this.forbidWhoami(after.message);
+      await this.verifySession(signal);
+      return null;
     }
-    this.whoamiDoc = (renewed ?? null) as BillmgrDoc | null;
-    return this.whoamiDoc as BillmgrDoc;
+    throw new Error(
+      after.state === 'error' ? `BILLmanager (whoami): ${after.message}` : COOKIE_EXPIRED_MESSAGE,
+    );
+  }
+
+  private adoptWhoami(data: unknown): BillmgrDoc | null {
+    this.whoamiDoc = (data ?? null) as BillmgrDoc | null;
+    return this.whoamiDoc;
+  }
+
+  /**
+   * whoami is the cheapest way to prove the session is alive, but when the account may not call it
+   * its refusal says nothing about the cookie. func=menu is readable by any client role, so it
+   * takes over the job: a dead cookie still surfaces as an expired session instead of quietly
+   * becoming an empty account. If even the menu is refused, the session is taken as good and the
+   * data funcs speak for themselves.
+   */
+  private async verifySession(signal: AbortSignal): Promise<void> {
+    const usable = (v: ReturnType<BillmgrCookieConnector['inspect']>) =>
+      v.state === 'ok' || (v.state === 'error' && v.privilege);
+    if (usable(this.inspect(await this.raw('menu', signal)))) return;
+    await this.refresh(signal);
+    const after = this.inspect(await this.raw('menu', signal));
+    if (usable(after)) return;
+    throw new Error(
+      after.state === 'error' ? `BILLmanager (menu): ${after.message}` : COOKIE_EXPIRED_MESSAGE,
+    );
+  }
+
+  /** Remember that whoami is refused and say it once: the account info is lost, the sync is not. */
+  private forbidWhoami(message: string): void {
+    if (this.whoamiForbidden) return;
+    this.whoamiForbidden = true;
+    this.logger.warn(`${ACCOUNT_INFO_FORBIDDEN_MESSAGE} (the panel said: ${message})`);
   }
 
   private async raw(
@@ -196,12 +242,16 @@ export class BillmgrCookieConnector implements Connector {
    */
   private inspect(
     data: unknown,
-  ): { state: 'ok' } | { state: 'expired' } | { state: 'error'; message: string } {
+  ):
+    | { state: 'ok' }
+    | { state: 'expired' }
+    | { state: 'error'; message: string; privilege: boolean } {
     if (typeof data === 'string') {
       return /<html|<!doctype/i.test(data.slice(0, 512))
         ? { state: 'expired' }
         : {
             state: 'error',
+            privilege: false,
             message:
               'the panel answered with plain text instead of JSON — check that the base URL points at the /billmgr endpoint',
           };
@@ -211,7 +261,11 @@ export class BillmgrCookieConnector implements Connector {
     if (doc.error) {
       return isSessionRejected(doc.error)
         ? { state: 'expired' }
-        : { state: 'error', message: billmgrError(doc.error) };
+        : {
+            state: 'error',
+            message: billmgrError(doc.error),
+            privilege: isPrivilegeError(doc.error),
+          };
     }
     if (
       doc.ok !== undefined &&
@@ -262,7 +316,10 @@ export class BillmgrCookieConnector implements Connector {
       verdict = this.inspect(await this.raw('whoami', signal));
       if (verdict.state === 'expired') throw new Error(TOTP_FAILED_MESSAGE);
     }
-    if (verdict.state === 'error') {
+    if (verdict.state === 'error' && verdict.privilege) {
+      // The renewal worked — whoami just stays off-limits for this account.
+      this.forbidWhoami(verdict.message);
+    } else if (verdict.state === 'error') {
       throw new Error(`BILLmanager (whoami): ${verdict.message}`);
     }
     this.logger.log('BILLmanager cookie session renewed via func=auth');
@@ -425,13 +482,39 @@ export class BillmgrCookieConnector implements Connector {
   async fetchAccount(signal: AbortSignal): Promise<Account> {
     await this.ensureSession(signal);
     // ensureSession already fetched (and validated) whoami; reuse it instead of a 2nd request.
-    const data = this.whoamiDoc ?? (await this.probe(signal));
+    const data = this.whoamiDoc ?? (this.whoamiForbidden ? null : await this.probe(signal));
+    if (!data) {
+      // whoami is off-limits (see forbidWhoami). Balance has no other source, but the currency is
+      // still worth having — it labels every service — so read it off a ledger amount instead.
+      return { balance: null, currency: await this.guessCurrency(signal) };
+    }
     const u = data?.doc?.user ?? {};
     const balanceStr = firstNumber(u.$balance == null ? undefined : String(u.$balance));
     return {
       balance: balanceStr != null ? new Decimal(balanceStr) : null,
       currency: normalizeCurrency(u.$currency == null ? undefined : String(u.$currency)),
     };
+  }
+
+  /**
+   * Currency without whoami: BILLmanager renders amounts with the account currency attached
+   * ("49.99 руб."), so one row of any ledger func names it. Best-effort — with no readable ledger
+   * the account falls back to RUB, which only mislabels the amounts, it cannot lose them.
+   */
+  private async guessCurrency(signal: AbortSignal): Promise<string> {
+    for (const func of ['payment', 'expense']) {
+      try {
+        const data = await this.call(func, signal, { p_cnt: '1', p_num: '1' });
+        const row = (asArray(data?.doc?.elem) as Record<string, unknown>[])[0];
+        if (!row) continue;
+        const raw =
+          val(row.paymethodamount_iso) ?? val(row.subaccountamount_iso) ?? val(row.amount);
+        if (raw && /\D/.test(raw)) return currencyFromAmount(raw);
+      } catch {
+        // this func is unavailable too — try the next one
+      }
+    }
+    return normalizeCurrency(undefined);
   }
 
   /**
