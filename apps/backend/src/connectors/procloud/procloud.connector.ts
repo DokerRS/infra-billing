@@ -3,22 +3,16 @@ import axios, { type AxiosInstance } from 'axios';
 import { REQUEST_TIMEOUT_MS } from '../common/http';
 import { Account, Connector, PaymentData, ServiceData } from '../connector.interface';
 import {
-  billedByUuid,
+  mapProcloudBilledItem,
   mapProcloudPayments,
   mapProcloudServer,
   money,
-  nextMarker,
-  projectNameOf,
+  splitBilledItems,
 } from './procloud.mapper';
 import {
-  KeystoneService,
-  NovaServer,
-  NovaServersPage,
   PROCLOUD_CURRENCY,
-  PROCLOUD_DEFAULT_IDENTITY_URL,
   PROCLOUD_KEYCLOAK_CLIENT_ID,
   PROCLOUD_PANEL_URL,
-  PROCLOUD_REGIONS,
   PROCLOUD_TOKEN_URL,
   ProcloudAccount,
   ProcloudActiveBilling,
@@ -27,16 +21,15 @@ import {
   ProcloudBilledItem,
   ProcloudCredentials,
   ProcloudHistoryEntry,
-  ProcloudRegion,
+  ProcloudServersPage,
 } from './procloud.types';
-
-// The panel lists servers in pages of 300 as well.
-const PAGE_SIZE = 300;
 
 /** Panel session: the Keycloak access token and the account (contract) it bills. */
 interface PanelSession {
   accessToken: string;
   account: ProcloudAccount;
+  /** Contract id (`externalId`) the panel selects with `X-Account-Id`. */
+  accountId: string;
 }
 
 /** The panel refused the email/password: the owner has to fix the credentials. */
@@ -51,33 +44,29 @@ function pathOf(url: string | undefined): string {
 }
 
 /**
- * ProCloud connector. ProCloud is a white-label of 3HCloud, so the cloud side is plain OpenStack:
- * Keystone v3 password auth (token in the `X-Subject-Token` header) and Nova `servers/detail`.
- * Every location runs its own Keystone and gets its own API user, so one provider covers one
- * location and its identity URL is picked from an allowlist — the password never leaves it.
+ * ProCloud connector, built on the customer panel (my.procloud.ru).
  *
- * Nova has no price and ProCloud publishes no plan catalog, so the balance, the monthly prices and
- * the ledger come from the billing panel behind a Keycloak password grant (email + password of the
- * website sign-in). Without those the account reports no balance and servers sync unpriced.
+ * ProCloud is a white-label of 3HCloud and does publish a per-location OpenStack cloud, but those
+ * clouds are useless on their own: Nova has no price, ProCloud publishes no plan catalog, and every
+ * location needs its own API user — so one provider could only ever see one location and could
+ * never say what it costs. The panel exposes all locations at once, with the prices, the balance and
+ * the ledger, so it is the only source the connector uses. It signs in with the website credentials
+ * through the realm's password grant and reads the same JSON the SPA does.
+ *
+ * Every data call needs the contract twice: as the `X-Account-Id` header and as an `accountId` (or
+ * `contractId`) parameter. Which form the id takes differs per endpoint — the contract number for
+ * the resource and billing calls, the panel's internal uuid for the ledger — so both are kept.
  */
 export class ProcloudConnector implements Connector {
   private readonly logger = new Logger(ProcloudConnector.name);
   private readonly http: AxiosInstance;
-  private readonly identityUrl: string;
-  private readonly region: ProcloudRegion;
   private readonly creds: ProcloudCredentials;
-  private token: string | null = null;
-  private computeUrl: string | null = null;
-  private panel: Promise<PanelSession | null> | null = null;
+  private panel: Promise<PanelSession> | null = null;
 
   constructor(creds: ProcloudCredentials) {
-    const identityUrl = (creds.baseUrl ?? PROCLOUD_DEFAULT_IDENTITY_URL).replace(/\/+$/, '');
-    const region = PROCLOUD_REGIONS[identityUrl];
-    if (!region) {
-      throw new Error(`ProCloud: unsupported identity URL (${Object.keys(PROCLOUD_REGIONS)[0]}…)`);
+    if (!creds.email || !creds.webPassword) {
+      throw new Error('ProCloud: the panel email and password are required');
     }
-    this.identityUrl = identityUrl;
-    this.region = region;
     this.creds = creds;
     // Neither API legitimately redirects; refuse rather than re-send the token elsewhere.
     this.http = axios.create({ timeout: REQUEST_TIMEOUT_MS, maxRedirects: 0 });
@@ -100,11 +89,10 @@ export class ProcloudConnector implements Connector {
 
   async fetchAccount(signal: AbortSignal): Promise<Account> {
     const session = await this.panelSession(signal);
-    if (!session) return { balance: null, currency: PROCLOUD_CURRENCY };
     const billing = await this.panelGet<ProcloudBilling>(
       session,
       '/api/billing',
-      { accountId: session.account.id },
+      { accountId: session.accountId },
       signal,
     );
     // The account page is authoritative; the dashboard summary is the fallback.
@@ -115,7 +103,7 @@ export class ProcloudConnector implements Connector {
           await this.panelGet<ProcloudBillingSummary>(
             session,
             '/api/dashboard/billing',
-            undefined,
+            { accountId: session.accountId },
             signal,
           )
         )?.balance,
@@ -123,42 +111,64 @@ export class ProcloudConnector implements Connector {
     return { balance: balance ?? null, currency: PROCLOUD_CURRENCY };
   }
 
+  /**
+   * Servers of every location, priced by the account's active billing. Resources the panel bills
+   * without a server row (extra IP addresses, standalone disks) are synced as services of their
+   * own — leaving them out would make the services add up to less than the panel's total.
+   */
   async fetchServices(signal: AbortSignal): Promise<ServiceData[]> {
-    const token = await this.keystone(signal);
-    const servers = await this.listServers(token, signal);
-    const billed = await this.billedItems(signal);
-    return servers.map((s) =>
-      mapProcloudServer(s, this.region, billed.get(s.id), PROCLOUD_CURRENCY),
+    const session = await this.panelSession(signal);
+    const [page, billed] = await Promise.all([
+      this.panelGet<ProcloudServersPage>(
+        session,
+        '/api/server',
+        { accountId: session.accountId },
+        signal,
+      ),
+      this.billedItems(session, signal),
+    ]);
+    const servers = (page?.items ?? []).filter((s) => s?.id);
+    const { byServer, standalone } = splitBilledItems(
+      billed,
+      new Set(servers.map((s) => String(s.id))),
     );
+    if (page?.failedRegions?.length) {
+      this.logger.warn(
+        `ProCloud: ${page.failedRegions.length} location(s) did not answer, the list may be incomplete`,
+      );
+    }
+    const services: ServiceData[] = servers.map((s) =>
+      mapProcloudServer(s, byServer.get(String(s.id)), PROCLOUD_CURRENCY),
+    );
+    for (const item of standalone) {
+      const service = mapProcloudBilledItem(item, PROCLOUD_CURRENCY);
+      // A billed resource without a price is nothing to track; the ledger still shows its charge.
+      if (service?.cost) services.push(service);
+    }
+    return services;
   }
 
-  /** Payments and invoices of the account; needs the panel sign-in. */
+  /** Payments and invoices of the account. */
   async fetchPayments(signal: AbortSignal): Promise<PaymentData[]> {
     const session = await this.panelSession(signal);
-    if (!session) return [];
+    // The ledger is the one endpoint keyed by the panel's internal uuid rather than the contract id.
     const rows = await this.panelGet<ProcloudHistoryEntry[]>(
       session,
       '/api/billing/history',
-      { accountId: session.account.id },
+      { accountId: session.account.id ?? session.accountId },
       signal,
     );
     return mapProcloudPayments(Array.isArray(rows) ? rows : [], PROCLOUD_CURRENCY);
   }
 
   /**
-   * Panel session, opened once per sync and shared by the balance, the prices and the ledger: the
-   * Keycloak password grant rate-limits, so a phase retry must not sign in again — the promise,
-   * rejection included, is kept for the connector's lifetime. Rejected credentials fail the sync;
-   * anything else (rate limit, outage) only costs this run its balance and prices.
+   * Panel session, opened once per sync and shared by every phase: the Keycloak password grant
+   * rate-limits, so a phase retry must not sign in again — the promise, rejection included, is kept
+   * for the connector's lifetime. Rejected credentials fail the sync, since without the panel there
+   * is nothing to sync at all.
    */
-  private panelSession(signal: AbortSignal): Promise<PanelSession | null> {
-    if (!this.creds.email || !this.creds.webPassword) return Promise.resolve(null);
-    this.panel ??= this.signIn(signal).catch((e) => {
-      if (signal.aborted || e instanceof SignInRejected) throw e;
-      const reason = e instanceof Error ? e.message : String(e);
-      this.logger.warn(`ProCloud: panel sign-in unavailable, no balance this run: ${reason}`);
-      return null;
-    });
+  private panelSession(signal: AbortSignal): Promise<PanelSession> {
+    this.panel ??= this.signIn(signal);
     return this.panel;
   }
 
@@ -166,8 +176,8 @@ export class ProcloudConnector implements Connector {
     const form = new URLSearchParams({
       client_id: PROCLOUD_KEYCLOAK_CLIENT_ID,
       grant_type: 'password',
-      username: this.creds.email as string,
-      password: this.creds.webPassword as string,
+      username: this.creds.email,
+      password: this.creds.webPassword,
     });
     const res = await this.http.post(PROCLOUD_TOKEN_URL, form.toString(), {
       signal,
@@ -192,19 +202,21 @@ export class ProcloudConnector implements Connector {
 
     const accessToken = String(body.access_token);
     const accounts = await this.panelGet<ProcloudAccount[]>(
-      { accessToken, account: {} },
+      { accessToken, account: {}, accountId: '' },
       '/api/account',
       undefined,
       signal,
     );
     const list = (Array.isArray(accounts) ? accounts : []).filter((a) => a.externalId || a.id);
-    if (list.length === 0) throw new Error('ProCloud: panel returned no account');
+    if (list.length === 0) throw new Error('ProCloud: the panel account has no contract');
     if (list.length > 1) {
       this.logger.warn(
-        `ProCloud: the panel user holds ${list.length} accounts, syncing the first one (${list[0].dognum ?? list[0].externalId})`,
+        `ProCloud: the panel user holds ${list.length} contracts, syncing the first one (${list[0].dognum ?? list[0].externalId})`,
       );
     }
-    return { accessToken, account: list[0] };
+    const account = list[0];
+    const accountId = String(account.externalId ?? account.id);
+    return { accessToken, account, accountId };
   }
 
   private async panelGet<T>(
@@ -216,8 +228,8 @@ export class ProcloudConnector implements Connector {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${session.accessToken}`,
     };
-    // The panel selects the billed account with this header on every call.
-    if (session.account.externalId) headers['X-Account-Id'] = String(session.account.externalId);
+    // The panel selects the billed contract with this header on every call.
+    if (session.accountId) headers['X-Account-Id'] = session.accountId;
     const { data } = await this.http.get<T>(`${PROCLOUD_PANEL_URL}${path}`, {
       signal,
       headers,
@@ -226,125 +238,18 @@ export class ProcloudConnector implements Connector {
     return data;
   }
 
-  /**
-   * Billed resources of the account, keyed by the OpenStack id they bill for. Best-effort: without
-   * the panel (or without a sign-in) servers stay unpriced and the sync keeps their cost.
-   */
-  private async billedItems(signal: AbortSignal): Promise<Map<string, ProcloudBilledItem>> {
-    try {
-      const session = await this.panelSession(signal);
-      if (!session?.account.externalId) return new Map();
-      const data = await this.panelGet<ProcloudActiveBilling>(
-        session,
-        '/api/billing/active',
-        { contractId: session.account.externalId },
-        signal,
-      );
-      const items = (data?.groups ?? []).flatMap((g) => g.items ?? []);
-      return billedByUuid(items);
-    } catch (e) {
-      if (signal.aborted) throw e;
-      // Best-effort even for rejected credentials: the servers are worth syncing unpriced, and the
-      // balance phase reports the rejection.
-      const reason = e instanceof Error ? e.message : String(e);
-      this.logger.warn(
-        `ProCloud: billed resources unavailable, servers keep their cost: ${reason}`,
-      );
-      return new Map();
-    }
-  }
-
-  /**
-   * Project-scoped Keystone token, cached for the connector's lifetime (one sync). The RC file's
-   * auth URL is the bare host, so the v3 path is not known: the panel's deployments answer under
-   * `/v3`, and `/identity/v3` is tried when that path is not served.
-   */
-  private async keystone(signal: AbortSignal): Promise<string> {
-    if (this.token) return this.token;
-    const { username, password } = this.creds;
-    const projectName = this.creds.projectName || projectNameOf(username);
-    const body = {
-      auth: {
-        identity: {
-          methods: ['password'],
-          password: { user: { name: username, domain: { name: 'Default' }, password } },
-        },
-        // The API user is scoped to the account's project, not to its own name.
-        scope: { project: { name: projectName, domain: { name: 'Default' } } },
-      },
-    };
-    let lastStatus = 0;
-    for (const path of ['/v3/auth/tokens', '/identity/v3/auth/tokens']) {
-      const res = await this.http.post(`${this.identityUrl}${path}`, body, {
-        signal,
-        validateStatus: () => true,
-      });
-      if (res.status === 404) {
-        lastStatus = res.status;
-        continue;
-      }
-      if (res.status === 401) {
-        throw new Error(
-          'ProCloud: invalid OpenStack login, password or project (panel → API access)',
-        );
-      }
-      if (res.status >= 400) {
-        throw new Error(`ProCloud: authorization failed (HTTP ${res.status})`);
-      }
-      const token = res.headers['x-subject-token'];
-      if (!token) throw new Error('ProCloud: token was not obtained (no X-Subject-Token header)');
-      this.token = String(token);
-      this.computeUrl = this.computeFromCatalog(
-        (res.data?.token?.catalog ?? []) as KeystoneService[],
-      );
-      return this.token;
-    }
-    throw new Error(
-      `ProCloud: no Keystone v3 endpoint at ${this.identityUrl} (HTTP ${lastStatus || 'n/a'})`,
+  /** Resources the contract is billed for this month, servers and everything else alike. */
+  private async billedItems(
+    session: PanelSession,
+    signal: AbortSignal,
+  ): Promise<ProcloudBilledItem[]> {
+    const data = await this.panelGet<ProcloudActiveBilling>(
+      session,
+      '/api/billing/active',
+      { contractId: session.accountId },
+      signal,
     );
-  }
-
-  /**
-   * Nova endpoint from the token catalog, restricted to this location's region and to the
-   * allowlisted host — a catalog entry pointing elsewhere would leak the token.
-   */
-  private computeFromCatalog(services: KeystoneService[]): string | null {
-    const endpoints = services
-      .filter((s) => s.type === 'compute')
-      .flatMap((s) => s.endpoints ?? [])
-      .filter((e) => (e.interface ?? 'public') === 'public');
-    const wanted = endpoints.find((e) => (e.region_id ?? e.region) === this.region.region);
-    for (const endpoint of [wanted, ...endpoints]) {
-      if (!endpoint?.url) continue;
-      const host = this.hostOf(endpoint.url);
-      if (host && host === new URL(this.region.compute).host) return this.region.compute;
-    }
-    return null;
-  }
-
-  private hostOf(url: string): string | null {
-    try {
-      return new URL(url).host;
-    } catch {
-      return null;
-    }
-  }
-
-  private async listServers(token: string, signal: AbortSignal): Promise<NovaServer[]> {
-    const base = this.computeUrl ?? this.region.compute;
-    const url = `${base}/compute/v2.1/servers/detail`;
-    const servers: NovaServer[] = [];
-    let marker: string | undefined;
-    do {
-      const { data } = await this.http.get<NovaServersPage>(url, {
-        signal,
-        headers: { 'X-Auth-Token': token },
-        params: marker ? { limit: PAGE_SIZE, marker } : { limit: PAGE_SIZE },
-      });
-      servers.push(...(data.servers ?? []));
-      const next = nextMarker(data.servers_links);
-      marker = next && next !== marker ? next : undefined;
-    } while (marker);
-    return servers;
+    if (!data?.groups) throw new Error('ProCloud: unexpected /api/billing/active response');
+    return (data.groups ?? []).flatMap((g) => g.items ?? []);
   }
 }

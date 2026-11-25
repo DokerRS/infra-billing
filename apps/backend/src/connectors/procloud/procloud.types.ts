@@ -1,72 +1,6 @@
-// ProCloud API shapes. ProCloud is a white-label of 3HCloud: OpenStack (Keystone v3 + Nova) per
-// location, plus a billing panel (my.procloud.ru) behind a Keycloak login. Only consumed fields
-// are typed.
-
-export interface ProcloudRegion {
-  /** Nova endpoint of the location, used when the Keystone catalog has no compute entry. */
-  compute: string;
-  /** Catalog region name of the location ("Moscow"), as the RC file's OS_REGION_NAME spells it. */
-  region: string;
-  /** ISO 3166-1 alpha-2 of the location, for the service's country flag. */
-  countryCode: string;
-  /** Label shown in the provider form. */
-  label: string;
-}
-
-// Keys are the only accepted identity URLs: the OpenStack password must not reach another host.
-// One provider covers one location — ProCloud issues a separate API user (RC file) per location.
-export const PROCLOUD_REGIONS: Record<string, ProcloudRegion> = {
-  'https://identity.api.os.msk.3hcloud.com': {
-    compute: 'https://compute.api.os.msk.3hcloud.com',
-    region: 'Moscow',
-    countryCode: 'RU',
-    label: 'Moscow',
-  },
-  'https://identity.api.os.waw.3hcloud.com': {
-    compute: 'https://compute.api.os.waw.3hcloud.com',
-    region: 'Warsaw',
-    countryCode: 'PL',
-    label: 'Warsaw',
-  },
-  'https://identity.api.os.mnl.3hcloud.com': {
-    compute: 'https://compute.api.os.mnl.3hcloud.com',
-    region: 'Manila',
-    countryCode: 'PH',
-    label: 'Manila',
-  },
-  'https://identity.api.os.mia.3hcloud.com': {
-    compute: 'https://compute.api.os.mia.3hcloud.com',
-    region: 'Miami',
-    countryCode: 'US',
-    label: 'Miami',
-  },
-  'https://identity.api.os.mia2.3hcloud.com': {
-    compute: 'https://compute.api.os.mia2.3hcloud.com',
-    region: 'Miami-2',
-    countryCode: 'US',
-    label: 'Miami-2',
-  },
-  'https://identity.api.os.dfw.3hcloud.com': {
-    compute: 'https://compute.api.os.dfw.3hcloud.com',
-    region: 'Dallas',
-    countryCode: 'US',
-    label: 'Dallas',
-  },
-  'https://identity.api.os.sfo.3hcloud.com': {
-    compute: 'https://compute.api.os.sfo.3hcloud.com',
-    region: 'San Francisco',
-    countryCode: 'US',
-    label: 'San Francisco',
-  },
-  'https://identity.api.os.ala.3hcloud.com': {
-    compute: 'https://compute.api.os.ala.3hcloud.com',
-    region: 'Almaty',
-    countryCode: 'KZ',
-    label: 'Almaty',
-  },
-};
-
-export const PROCLOUD_DEFAULT_IDENTITY_URL = 'https://identity.api.os.msk.3hcloud.com';
+// ProCloud panel (my.procloud.ru) API shapes. The panel sits behind a Keycloak login and answers
+// for every location at once, so it — not the per-location OpenStack clouds — is what the connector
+// talks to. Only consumed fields are typed.
 
 /** Billing panel and its Keycloak realm. Both are single-tenant hosts, fixed in code. */
 export const PROCLOUD_PANEL_URL = 'https://my.procloud.ru';
@@ -78,66 +12,117 @@ export const PROCLOUD_KEYCLOAK_CLIENT_ID = 'web';
 /** ProCloud bills in roubles. */
 export const PROCLOUD_CURRENCY = 'RUB';
 
+/**
+ * Country of a panel location. The panel reports `endpointRegion` ("SanFrancisco") and an
+ * `availabilityZone` ("SFO-1"); both are accepted, since a location name is not always spelled the
+ * same way in both fields.
+ */
+export const PROCLOUD_LOCATION_COUNTRY: Record<string, string> = {
+  moscow: 'RU',
+  msk: 'RU',
+  warsaw: 'PL',
+  waw: 'PL',
+  manila: 'PH',
+  mnl: 'PH',
+  miami: 'US',
+  mia: 'US',
+  dallas: 'US',
+  dfw: 'US',
+  'san francisco': 'US',
+  sanfrancisco: 'US',
+  sfo: 'US',
+  almaty: 'KZ',
+  ala: 'KZ',
+};
+
 export interface ProcloudCredentials {
-  username: string; // OpenStack login from the location's RC file (api-<account>-…)
-  password: string;
-  baseUrl?: string; // one of PROCLOUD_REGIONS keys; default — Moscow
-  projectName?: string; // Keystone project; default — derived from the login (proj-<account>)
-  // Optional panel sign-in: enables the balance, the prices and the payment ledger.
-  email?: string;
-  webPassword?: string;
+  /** The email and password the owner signs in to my.procloud.ru with. */
+  email: string;
+  webPassword: string;
 }
 
-/** Keystone v3 token response: only the catalog entries endpoints are resolved from. */
-export interface KeystoneService {
-  type?: string;
-  endpoints?: Array<{ interface?: string; region?: string; region_id?: string; url?: string }>;
-}
-
-export interface KeystoneToken {
-  catalog?: KeystoneService[];
-}
-
+/**
+ * `GET /api/account` (panel). A user may hold several, but a cabinet normally bills one contract.
+ * `id` is the panel's internal uuid (what `/api/billing/history` wants), `externalId` the contract
+ * id sent as `X-Account-Id` and used by the resource and billing endpoints.
+ */
 export interface ProcloudAccount {
-  /** Panel's internal id, the `accountId` of the billing endpoints. */
   id?: string | number;
-  /** Contract id, sent as `X-Account-Id` and used by `/api/billing/active`. */
   externalId?: string;
   /** Account number shown to the customer. */
   dognum?: string;
-  description?: string;
+  accountNumber?: string;
+  name?: string;
+  isActive?: boolean;
 }
 
-/** `GET /api/billing?accountId=<id>` (panel). */
+/** `GET /api/billing?accountId=<externalId>` (panel). */
 export interface ProcloudBilling {
   balance?: number | string;
   creditLimit?: number | string;
+  creditLimitRemainder?: number | string;
+  nextBillingDate?: string;
 }
 
-/** `GET /api/dashboard/billing` (panel). */
+/** `GET /api/dashboard/billing?accountId=<externalId>` (panel). */
 export interface ProcloudBillingSummary {
   balance?: number | string;
   unbilledAmount?: number | string;
 }
 
 /**
- * `GET /api/billing/active?contractId=<externalId>` (panel). One group per product class; an item
- * is one billed resource, `uuid` being the OpenStack id of an instance.
+ * `GET /api/server?accountId=<externalId>` (panel). One row per cloud server, in every location the
+ * account has servers in — status, addresses and flavour included, which Nova needed a per-location
+ * API user for.
+ */
+export interface ProcloudServer {
+  id: string;
+  name?: string;
+  status?: string;
+  createdAt?: string;
+  imageName?: string;
+  imageVersion?: string;
+  /** Tariff plan name ("Enterprise cloud"). */
+  tariff?: string;
+  ipAddresses?: string[];
+  flavor?: { originalName?: string; ram?: number; vcpus?: number; disk?: number };
+  securityGroups?: string[];
+  availabilityZone?: string;
+  endpointRegion?: string;
+}
+
+export interface ProcloudServersPage {
+  items?: ProcloudServer[];
+  /** Locations whose cloud did not answer; the list is then incomplete. */
+  failedRegions?: unknown[];
+}
+
+/**
+ * `GET /api/billing/active?contractId=<externalId>` (panel). One group per product class; an item is
+ * one billed resource, `uuid` being the OpenStack id of the instance it bills for. `price` is the
+ * month's total after discounts (`unit: "hour"` only says it accrues hourly).
  */
 export interface ProcloudBilledItem {
   uuid?: string;
   name?: string;
   description?: string;
   location?: string;
+  /** Product name ("Виртуальный сервер", "IP-адрес"). */
+  product?: string;
+  productPl?: string;
+  /** Product group ("Облачная платформа", "IP-адреса"). */
+  productGroup?: string;
   price?: number | string; // per month, after discounts
   priceHour?: number | string;
   fullPrice?: number | string; // per month, before discounts
   discount?: number | string;
+  dateStart?: string;
 }
 
 export interface ProcloudBilledGroup {
   id?: string | number;
   productClassId?: string | number;
+  title?: string;
   items?: ProcloudBilledItem[];
 }
 
@@ -151,32 +136,14 @@ export interface ProcloudActiveBilling {
  */
 export interface ProcloudHistoryEntry {
   id?: string | number;
+  /** The panel's history rows are keyed by contract, not by a per-row id. */
+  contractId?: string;
+  dogId?: string;
+  docId?: string;
   entryType?: string; // "bill" | "pay" | "unbilled"
   historyDate?: string;
   historyName?: string;
   amount?: number | string;
   dateFrom?: string;
   dateTo?: string;
-}
-
-export interface NovaAddress {
-  addr?: string;
-  version?: number;
-}
-
-/** Nova `GET /servers/detail` without a microversion header: `flavor` is `{id}`. */
-export interface NovaServer {
-  id: string;
-  name?: string;
-  status?: string;
-  created?: string;
-  flavor?: { id?: string };
-  addresses?: Record<string, NovaAddress[]>;
-  metadata?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
-export interface NovaServersPage {
-  servers?: NovaServer[];
-  servers_links?: Array<{ rel?: string; href?: string }>;
 }

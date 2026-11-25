@@ -95,9 +95,8 @@ export type ProviderCredentialsReveal = z.infer<typeof providerCredentialsReveal
 // HostVDS uses `username` + `password` (the OpenStack user from the panel's API tab), plus
 // optional `baseUrl` (https://hostvds.com or https://cloudcore.ru) picking the brand, and an
 // optional website sign-in — `email` + `webPassword` (+ `totpSecret`) — for balance and payments.
-// ProCloud uses `username` + `password` (the OpenStack user of one location's RC file), `baseUrl`
-// picking the location and `projectName` overriding the Keystone project, plus an optional panel
-// sign-in — `email` + `webPassword` — for the balance, the prices and the ledger.
+// ProCloud uses `email` + `webPassword` (the my.procloud.ru customer-panel sign-in) — the panel
+// API returns every location's servers with their prices, the balance and the payment ledger.
 // Infomaniak uses `token` alone (a personal API token sent as `Authorization: Bearer`); the API has
 // no balance, so nothing else is needed.
 // SKRIME uses `token` alone (the dashboard API key, sent as `Authorization: Bearer`).
@@ -118,8 +117,8 @@ const credentialFields = {
   apiPassword: z.string().min(1).describe('Beget API password').optional(),
   // Porkbun / Spaceship: the secret API key, paired with `token` (the API key).
   secretKey: z.string().min(1).describe('Secret API key').optional(),
-  // HostVDS / ProCloud: website (panel) sign-in — their API user has no billing access. Enables
-  // the balance, and the prices / ledger.
+  // HostVDS: optional website sign-in; ProCloud: the only sign-in it has. Both APIs miss the
+  // billing data, so the panel session provides the balance, prices and ledger.
   email: z.string().email().describe('Website sign-in email').optional(),
   webPassword: z.string().min(1).describe('Website sign-in password').optional(),
   useCatalogNames: z.boolean().describe('OpenRouter: use catalog display names').optional(),

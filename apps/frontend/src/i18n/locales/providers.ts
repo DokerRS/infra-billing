@@ -124,19 +124,12 @@ export const providers = {
       hostvdsEmailDesc:
         'Optional: the email and password you sign in to the website with. Adds the balance and the payment history (top-ups, daily charges per server). Accounts that sign in with Google/Telegram have no password — leave empty.',
       hostvdsWebPassword: 'Website password',
-      procloudLogin: 'OpenStack login',
-      procloudLoginDesc:
-        'ProCloud cabinet → API access: download the OpenRC file of a location and copy its OS_USERNAME (api-…) and OS_PASSWORD. One provider covers one location — ProCloud issues a separate API user per location.',
-      procloudLocation: 'Location',
-      procloudLocationDesc:
-        "The location whose RC file you copied (its Keystone host). Servers of other locations need another account with that location's API user.",
-      procloudProject: 'Keystone project',
-      procloudProjectDesc:
-        'Optional: OS_PROJECT_NAME from the RC file (proj-…). By default it is derived from the login.',
       procloudEmail: 'Cabinet sign-in email',
       procloudEmailDesc:
-        'Optional: the email and password you sign in to my.procloud.ru with. Adds the balance, the monthly price of each server and the payment history. Leave empty to sync servers without prices.',
+        'The email you sign in to my.procloud.ru with. The cabinet answers for every location at once and is the only place ProCloud exposes prices, so there is no OpenStack key to fill in.',
       procloudWebPassword: 'Cabinet password',
+      procloudWebPasswordDesc:
+        'The password of the same sign-in. 2FA is not supported — the sync signs in the way the website does.',
       apiTokenDescDatapacket:
         'DataPacket client panel → Security → Add API key (read-only is enough). Syncs servers with their subscription price and location, other subscription items (IPs, traffic, DDoS) as one service per subscription, and paid invoices. The API has no account balance.',
       apiTokenDescGcore:
@@ -245,8 +238,7 @@ export const providers = {
       infomaniakToken: 'Enter the Infomaniak API token',
       skrimeToken: 'Enter the SKRIME API key',
       ovhCreds: 'Enter the OVH application key, application secret and consumer key',
-      procloudCreds: 'Enter the OpenStack login and password from the ProCloud RC file',
-      procloudWebCreds: 'Enter both the cabinet email and password, or neither',
+      procloudCreds: 'Enter the email and password you sign in to my.procloud.ru with',
       billmgrCookieCreds: 'Enter the panel URL and the session cookie',
       yandexKey: 'Paste the Yandex Cloud service account authorized key (JSON)',
     },
@@ -455,19 +447,12 @@ export const providers = {
       hostvdsEmailDesc:
         'Необязательно: email и пароль, с которыми вы входите на сайт. Добавляют баланс и историю платежей (пополнения, списания по серверам за день). У аккаунтов со входом через Google/Telegram пароля нет — оставьте пустым.',
       hostvdsWebPassword: 'Пароль от сайта',
-      procloudLogin: 'Логин OpenStack',
-      procloudLoginDesc:
-        'Кабинет ProCloud → доступ к API: скачайте OpenRC-файл локации и возьмите из него OS_USERNAME (api-…) и OS_PASSWORD. Один провайдер — одна локация: ProCloud выдаёт отдельного API-пользователя для каждой.',
-      procloudLocation: 'Локация',
-      procloudLocationDesc:
-        'Локация, из чьего RC-файла взяты логин и пароль (её Keystone-хост). Серверы других локаций требуют отдельного аккаунта с API-пользователем этой локации.',
-      procloudProject: 'Проект Keystone',
-      procloudProjectDesc:
-        'Необязательно: OS_PROJECT_NAME из RC-файла (proj-…). По умолчанию вычисляется из логина.',
       procloudEmail: 'Email для входа в кабинет',
       procloudEmailDesc:
-        'Необязательно: email и пароль, с которыми вы входите в my.procloud.ru. Добавляют баланс, месячную цену каждого сервера и историю платежей. Оставьте пустым, чтобы синкать серверы без цен.',
+        'Email, с которым вы входите в my.procloud.ru. Кабинет сразу отвечает по всем локациям и — единственное место, где ProCloud отдаёт цены, — поэтому логин OpenStack здесь не нужен.',
       procloudWebPassword: 'Пароль от кабинета',
+      procloudWebPasswordDesc:
+        'Пароль от этого же входа. 2FA не поддерживается: синк входит так же, как сайт.',
       apiTokenDescDatapacket:
         'Панель DataPacket → Security → Add API key (достаточно read-only). Синхронизируются серверы с ценой из подписки и локацией, прочие позиции подписки (IP, трафик, DDoS) — одной услугой на подписку, и оплаченные счета. Баланса аккаунта в API нет.',
       apiTokenDescGcore:
@@ -576,8 +561,7 @@ export const providers = {
       infomaniakToken: 'Укажите API-токен Infomaniak',
       skrimeToken: 'Укажите API-ключ SKRIME',
       ovhCreds: 'Укажите application key, application secret и consumer key OVH',
-      procloudCreds: 'Укажите логин и пароль OpenStack из RC-файла ProCloud',
-      procloudWebCreds: 'Укажите и email, и пароль от кабинета — или ничего',
+      procloudCreds: 'Укажите email и пароль от кабинета my.procloud.ru',
       billmgrCookieCreds: 'Укажите адрес панели и cookie сессии',
       yandexKey: 'Вставьте авторизованный ключ сервисного аккаунта Yandex Cloud (JSON)',
     },

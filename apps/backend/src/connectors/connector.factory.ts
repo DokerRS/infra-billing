@@ -139,9 +139,8 @@ export class ConnectorFactory {
         // user from the panel's API tab; baseUrl picks the brand.
         return new HostvdsConnector(JSON.parse(token) as HostvdsCredentials);
       case 'procloud':
-        // ProCloud secret is JSON: { username, password, baseUrl?, projectName?, email?,
-        // webPassword? } — the OpenStack user of one location's RC file; the optional panel
-        // login adds the balance, the prices and the ledger.
+        // ProCloud secret is JSON: { email, webPassword } — the my.procloud.ru sign-in, which
+        // answers for every location and carries the prices, balance and ledger.
         return new ProcloudConnector(JSON.parse(token) as ProcloudCredentials);
       case 'datapacket':
         // DataPacket secret is the raw API key (single string, sent as the Authorization Bearer header).
