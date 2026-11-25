@@ -800,6 +800,44 @@ export function ProviderCredentialFields({
     );
   }
 
+  if (kind === 'infomaniak') {
+    return (
+      <Field
+        id="cred-token"
+        label={t('providers.field.apiToken')}
+        description={t('providers.field.apiTokenDescInfomaniak')}
+        link="https://manager.infomaniak.com/v3/ng/profile/user/token/list"
+      >
+        <SecretFormField
+          form={form}
+          name="token"
+          id="cred-token"
+          hasStored={storedSecrets?.hasToken}
+          reveal={reveal}
+        />
+      </Field>
+    );
+  }
+
+  if (kind === 'skrime') {
+    return (
+      <Field
+        id="cred-token"
+        label={t('providers.field.apiToken')}
+        description={t('providers.field.apiTokenDescSkrime')}
+        link="https://skrime.eu/api"
+      >
+        <SecretFormField
+          form={form}
+          name="token"
+          id="cred-token"
+          hasStored={storedSecrets?.hasToken}
+          reveal={reveal}
+        />
+      </Field>
+    );
+  }
+
   if (kind === 'ovh') {
     return (
       <>
@@ -1007,6 +1045,39 @@ export function ProviderCredentialFields({
             hasStored={storedSecrets?.hasTotpSecret}
             reveal={reveal}
             placeholder={storedSecrets?.hasTotpSecret ? undefined : optionalPh}
+          />
+        </Field>
+      </>
+    );
+  }
+
+  if (kind === 'procloud') {
+    return (
+      <>
+        <Field
+          id="cred-email"
+          label={t('providers.field.procloudEmail')}
+          description={t('providers.field.procloudEmailDesc')}
+          link="https://my.procloud.ru"
+        >
+          <Input
+            id="cred-email"
+            type="email"
+            placeholder="you@example.com"
+            {...form.register('email')}
+          />
+        </Field>
+        <Field
+          id="cred-web-password"
+          label={t('providers.field.procloudWebPassword')}
+          description={t('providers.field.procloudWebPasswordDesc')}
+        >
+          <SecretFormField
+            form={form}
+            name="webPassword"
+            id="cred-web-password"
+            hasStored={storedSecrets?.hasWebPassword}
+            reveal={reveal}
           />
         </Field>
       </>

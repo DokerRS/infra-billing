@@ -84,6 +84,11 @@ export class ProviderCredentialsService {
       const c = this.decodeCredentials(enc);
       return { baseUrl: c.baseUrl ?? null, username: c.username ?? null, email: c.email ?? null };
     }
+    if (kind === 'procloud') {
+      // The panel sign-in is the whole credential, and its email is not a secret.
+      const c = this.decodeCredentials(enc);
+      return { email: c.email ?? null };
+    }
     return {};
   }
 
@@ -113,7 +118,9 @@ export class ProviderCredentialsService {
       kind === 'datapacket' ||
       kind === 'gcore' ||
       kind === 'nodehost' ||
-      kind === '1cent'
+      kind === '1cent' ||
+      kind === 'infomaniak' ||
+      kind === 'skrime'
     ) {
       return { hasToken: true };
     }
@@ -149,6 +156,10 @@ export class ProviderCredentialsService {
         hasWebPassword: Boolean(c.webPassword),
         hasTotpSecret: Boolean(c.totpSecret),
       };
+    }
+    if (kind === 'procloud') {
+      // webPassword — the panel (my.procloud.ru) sign-in, the only secret the connector needs.
+      return { hasWebPassword: Boolean(c.webPassword) };
     }
     if (kind === 'billmgr' || kind === 'hostbill') {
       return { hasPassword: Boolean(c.password), hasTotpSecret: Boolean(c.totpSecret) };
@@ -192,7 +203,9 @@ export class ProviderCredentialsService {
       kind === 'datapacket' ||
       kind === 'gcore' ||
       kind === 'nodehost' ||
-      kind === '1cent'
+      kind === '1cent' ||
+      kind === 'infomaniak' ||
+      kind === 'skrime'
     ) {
       const token = this.decryptRaw(enc);
       return token ? { token } : {};
@@ -257,6 +270,9 @@ export class ProviderCredentialsService {
       if (c.webPassword) out.webPassword = c.webPassword;
       if (c.totpSecret) out.totpSecret = c.totpSecret;
       return out;
+    }
+    if (kind === 'procloud') {
+      return c.webPassword ? { webPassword: c.webPassword } : {};
     }
     if (kind === 'billmgr' || kind === 'hostbill') {
       const out: ProviderCredentialsReveal = {};
@@ -426,6 +442,19 @@ export class ProviderCredentialsService {
       }
       if (baseUrl) creds.baseUrl = baseUrl;
       return this.crypto.encrypt(JSON.stringify(creds));
+    }
+    if (kind === 'procloud') {
+      // Panel sign-in: JSON { email, webPassword }. The panel answers for every location and carries
+      // the prices, the balance and the ledger, so it is the whole credential.
+      const supplied = dto.email || dto.webPassword;
+      if (!supplied) return null;
+      const base = this.decodeCredentials(existingEnc);
+      const email = dto.email ?? base.email;
+      const webPassword = dto.webPassword ?? base.webPassword;
+      if (!email || !webPassword) {
+        throw new BadRequestException('Provide the ProCloud panel email and password together');
+      }
+      return this.crypto.encrypt(JSON.stringify({ email, webPassword }));
     }
     if (kind === 'hostbill' || kind === 'billmgr') {
       const supportsTotp = kind === 'billmgr' || kind === 'hostbill';

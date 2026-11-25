@@ -124,6 +124,12 @@ export const providers = {
       hostvdsEmailDesc:
         'Optional: the email and password you sign in to the website with. Adds the balance and the payment history (top-ups, daily charges per server). Accounts that sign in with Google/Telegram have no password — leave empty.',
       hostvdsWebPassword: 'Website password',
+      procloudEmail: 'Cabinet sign-in email',
+      procloudEmailDesc:
+        'The email you sign in to my.procloud.ru with. The cabinet answers for every location at once and is the only place ProCloud exposes prices, so there is no OpenStack key to fill in.',
+      procloudWebPassword: 'Cabinet password',
+      procloudWebPasswordDesc:
+        'The password of the same sign-in. 2FA is not supported — the sync signs in the way the website does.',
       apiTokenDescDatapacket:
         'DataPacket client panel → Security → Add API key (read-only is enough). Syncs servers with their subscription price and location, other subscription items (IPs, traffic, DDoS) as one service per subscription, and paid invoices. The API has no account balance.',
       apiTokenDescGcore:
@@ -132,6 +138,10 @@ export const providers = {
         'NodeHost developer cabinet → API keys: a read-only key (scopes account:read and servers:read) is enough. Syncs the balance (USD), servers with the monthly price and expiry date, and top-ups and charges. Only servers created through the API are visible: servers bought on the website are not.',
       apiTokenDescCent1:
         '1Cent.host cabinet → Settings → API: create a key (`cx_…`), read-only is enough. Syncs the balance (RUB), servers with the renewal price, expiry date and location, plus the balance ledger (top-ups and charges).',
+      apiTokenDescInfomaniak:
+        'Infomaniak Manager → your profile → API tokens: create a token with the `products:read` scope (add `userinfo:read` so the account currency is detected, and `invoicing:invoice:read` for prices and history). Syncs subscriptions (domains, hosting, kSuite, Public Cloud…) with their expiry date. The product endpoint carries no price, so each service cost and billing period is taken from the matching invoice line; without the invoicing scope services sync without a price and you set it manually. The same invoices are imported as charges linked to the service. No balance or credits in the API.',
+      apiTokenDescSkrime:
+        'SKRIME dashboard → API: create an API key. Syncs the balance (EUR), services with their price, expiry date and IP addresses, plus the account transactions (top-ups and charges).',
       ovhApplicationKey: 'Application key',
       ovhApplicationKeyDesc:
         'OVH → createToken → grant only the read-only billing paths (/me, /me/bill*, /me/ovhAccount*, /services*). The key belongs to one subsidiary.',
@@ -225,7 +235,10 @@ export const providers = {
       gcoreToken: 'Enter the Gcore API token',
       nodehostToken: 'Enter the NodeHost API key',
       cent1Token: 'Enter the 1Cent API key',
+      infomaniakToken: 'Enter the Infomaniak API token',
+      skrimeToken: 'Enter the SKRIME API key',
       ovhCreds: 'Enter the OVH application key, application secret and consumer key',
+      procloudCreds: 'Enter the email and password you sign in to my.procloud.ru with',
       billmgrCookieCreds: 'Enter the panel URL and the session cookie',
       yandexKey: 'Paste the Yandex Cloud service account authorized key (JSON)',
     },
@@ -434,6 +447,12 @@ export const providers = {
       hostvdsEmailDesc:
         'Необязательно: email и пароль, с которыми вы входите на сайт. Добавляют баланс и историю платежей (пополнения, списания по серверам за день). У аккаунтов со входом через Google/Telegram пароля нет — оставьте пустым.',
       hostvdsWebPassword: 'Пароль от сайта',
+      procloudEmail: 'Email для входа в кабинет',
+      procloudEmailDesc:
+        'Email, с которым вы входите в my.procloud.ru. Кабинет сразу отвечает по всем локациям и — единственное место, где ProCloud отдаёт цены, — поэтому логин OpenStack здесь не нужен.',
+      procloudWebPassword: 'Пароль от кабинета',
+      procloudWebPasswordDesc:
+        'Пароль от этого же входа. 2FA не поддерживается: синк входит так же, как сайт.',
       apiTokenDescDatapacket:
         'Панель DataPacket → Security → Add API key (достаточно read-only). Синхронизируются серверы с ценой из подписки и локацией, прочие позиции подписки (IP, трафик, DDoS) — одной услугой на подписку, и оплаченные счета. Баланса аккаунта в API нет.',
       apiTokenDescGcore:
@@ -442,6 +461,10 @@ export const providers = {
         'Кабинет разработчика NodeHost → API-ключи: достаточно ключа только на чтение (scopes account:read и servers:read). Синхронизируются баланс (USD), серверы с месячной ценой и датой окончания, пополнения и списания. Видны только серверы, созданные через API: купленные на сайте в нём не появляются.',
       apiTokenDescCent1:
         'Кабинет 1Cent.host → Настройки → API: создайте ключ (`cx_…`), достаточно ключа только на чтение. Синхронизируются баланс (RUB), серверы с ценой продления, датой окончания и локацией, а также операции по балансу (пополнения и списания).',
+      apiTokenDescInfomaniak:
+        'Менеджер Infomaniak → ваш профиль → API-токены: создайте токен со scope `products:read` (добавьте `userinfo:read`, чтобы определять валюту аккаунта, и `invoicing:invoice:read` — для цен и истории). Синхронизируются подписки (домены, хостинг, kSuite, Public Cloud…) с датой окончания. Цен в списке услуг нет, поэтому стоимость и период каждой услуги берутся из строки счёта по совпадению товара; без scope invoicing услуги синхронизируются без цены и стоимость задаётся вручную. Те же счета импортируются как списания с привязкой к услуге. Баланса и кредитов в API нет.',
+      apiTokenDescSkrime:
+        'Дашборд SKRIME → API: создайте API-ключ. Синхронизируются баланс (EUR), услуги с ценой, датой окончания и IP-адресами, а также операции по счёту (пополнения и списания).',
       ovhApplicationKey: 'Application key',
       ovhApplicationKeyDesc:
         'OVH → createToken: выдайте ключу только права на чтение (/me, /me/bill*, /me/ovhAccount*, /services*). Ключ привязан к одному подразделению.',
@@ -535,7 +558,10 @@ export const providers = {
       gcoreToken: 'Укажите API-токен Gcore',
       nodehostToken: 'Укажите API-ключ NodeHost',
       cent1Token: 'Укажите API-ключ 1Cent',
+      infomaniakToken: 'Укажите API-токен Infomaniak',
+      skrimeToken: 'Укажите API-ключ SKRIME',
       ovhCreds: 'Укажите application key, application secret и consumer key OVH',
+      procloudCreds: 'Укажите email и пароль от кабинета my.procloud.ru',
       billmgrCookieCreds: 'Укажите адрес панели и cookie сессии',
       yandexKey: 'Вставьте авторизованный ключ сервисного аккаунта Yandex Cloud (JSON)',
     },

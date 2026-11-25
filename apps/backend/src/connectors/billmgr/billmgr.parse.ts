@@ -76,11 +76,16 @@ export function isCaptchaError(err: unknown): boolean {
  * marks it with an access/privilege code in `$object`/`$type` (locale-independent); the message is
  * matched too because some installs only localize it. A half-authorized session (2FA pending) and a
  * restricted client/staff role both answer this way, so callers must not read it as "session dead"
- * nor as "account empty" — see the cookie connector, where it only costs the account info.
+ * nor as "account empty" — see the cookie connector, where it only costs the account info. Accepts
+ * the raw `doc.error` or an Error carrying it as `cause`.
  */
 export function isPrivilegeError(err: unknown): boolean {
-  if (!err || typeof err !== 'object') return false;
-  const e = err as Record<string, unknown>;
+  const e0 =
+    err instanceof Error && err.cause && typeof err.cause === 'object'
+      ? (err.cause as Record<string, unknown>)
+      : err;
+  if (!e0 || typeof e0 !== 'object') return false;
+  const e = e0 as Record<string, unknown>;
   const code = [e.$object, e.$type].filter((s): s is string => typeof s === 'string').join(' ');
   if (/access|privileg|permission|forbidden|denied|right/i.test(code)) return true;
   const msg = [val(e.msg), val(e.detail)]
@@ -89,12 +94,44 @@ export function isPrivilegeError(err: unknown): boolean {
   return /недостаточно прав|insufficient (right|privileg)|not enough right/i.test(msg);
 }
 
-// BILLmanager error → short human message (msg/detail/$object), not the raw JSON.
+/**
+ * The func is simply not part of this install (or not allowed for this user), so an empty result
+ * for it is honest. Used by fetchServices, which must tell "this item type does not exist here"
+ * apart from "the panel refused/failed to answer": skipping the latter would hide rows from the
+ * sync and make it mark the missing services inactive. Accepts the raw `doc.error` or an Error
+ * carrying it as `cause` (how the cookie connector rethrows it).
+ */
+export function isFuncUnavailable(err: unknown): boolean {
+  const e =
+    err instanceof Error && err.cause && typeof err.cause === 'object'
+      ? (err.cause as Record<string, unknown>)
+      : err;
+  if (!e || typeof e !== 'object') return false;
+  const c = e as Record<string, unknown>;
+  if (isPrivilegeError(c)) return true;
+  // Deliberately narrow: a code like "InvalidParameters" must NOT count, or a func that merely
+  // rejected our paging query would be skipped and its services deactivated.
+  const code = [c.$object, c.$type].filter((s): s is string => typeof s === 'string').join(' ');
+  if (/not_found|nosuch|no_such|unsupported|undefined/i.test(code)) return true;
+  const msg = [val(c.msg), val(c.detail)]
+    .filter((s): s is string => typeof s === 'string')
+    .join(' ');
+  return /не существует|не найдена|не найдено|не поддерживается|unknown function|does not exist|not found|invalid function/i.test(
+    msg,
+  );
+}
+
+// BILLmanager error → short human message (msg/detail/$object), not the raw JSON. An Error that
+// carries the doc.error as `cause` (how the cookie connector rethrows it) is unwrapped first.
 export function billmgrError(err: unknown): string {
-  if (err && typeof err === 'object') {
-    const e = err as Record<string, unknown>;
+  const e =
+    err instanceof Error && err.cause && typeof err.cause === 'object'
+      ? (err.cause as Record<string, unknown>)
+      : err;
+  if (e && typeof e === 'object') {
+    const o = e as Record<string, unknown>;
     return (
-      val(e.msg) ?? val(e.detail) ?? (e.$object != null ? String(e.$object) : undefined) ?? 'error'
+      val(o.msg) ?? val(o.detail) ?? (o.$object != null ? String(o.$object) : undefined) ?? 'error'
     );
   }
   return String(err);

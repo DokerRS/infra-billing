@@ -18,13 +18,15 @@
 - **Провайдеры с API:** Timeweb Cloud, Hetzner Cloud, Hostkey (InvAPI), netcup, HostBill,
   ISPsystem BILLmanager, Selectel, 4VPS.SU, Netlen, Beget Cloud, Porkbun, Spaceship, Vultr,
   Linode, Aeza, VDSina, Cloudflare, StormWall, NetAngels, Yandex Cloud, Double Servers, OpenRouter,
-  HostUp, HostVDS / CloudCore, DataPacket, Tube-Hosting, Gcore, NodeHost, 1Cent, OVH, плюс
+  HostUp, HostVDS / CloudCore, DataPacket, Tube-Hosting, Gcore, NodeHost, 1Cent, OVH, ProCloud,
+  Infomaniak, SKRIME, плюс
   **ISP BILLmanager (cookie)** — вход по браузерной куке. Плюс **Manual** — провайдеры
   без API ведутся руками.
 - **Автосинк** (по расписанию + кнопкой): баланс + валюта аккаунта, список серверов/услуг, даты
   следующих списаний; история баланса по дням (снапшоты).
 - **Импорт платежей** там, где API отдаёт реестр: пополнения и списания (BILLmanager, Netlen,
-  Vultr, Aeza, VDSina, Double Servers, HostVDS, Tube-Hosting, Gcore, NodeHost, 1Cent), пополнения и счета
+  Vultr, Aeza, VDSina, Double Servers, HostVDS, Tube-Hosting, Gcore, NodeHost, 1Cent, ProCloud,
+  SKRIME), пополнения и счета
   (Linode), счета и пополнения (OVH), оплаченные счета (HostBill, DataPacket), платежи (HostUp), потребление (Selectel,
   Yandex Cloud, OpenRouter), история биллинга (Cloudflare, best-effort). Ручные платежи — в журнале.
 - **Аналитика:** месячные/годовые расходы, разрезы по провайдеру / стране / типу / валюте, прогноз
@@ -38,15 +40,6 @@
   показать их в открытом виде можно лишь по «глазику» в форме, из сессии владельца.
 - **MCP-сервер** на `/api/mcp`: любой MCP-клиент смотрит расходы, балансы и сервисы, а с токеном
   полного доступа — заводит сервисы и платежи и запускает синк.
-
-## RWP Shop
-
-[<img src="apps/frontend/src/assets/rwp-logo.svg" width="56" align="left" alt="RWP Shop">](https://rwp.rw)
-
-[**RWP Shop**](https://rwp.rw) — лучший многофункциональный бот для VPN-коммерции на Remnawave:
-личный кабинет клиента, платежи, подписки, поддержка, партнёрская программа и аналитика. Работает
-в браузере и как Mini App в Telegram. Есть интеграция с Infra Billing.
-**Скидка 15%** по промокоду **`MISH`**.
 
 ## Стек
 
@@ -447,6 +440,35 @@ curl -H "Authorization: Bearer ib_…" https://infra-billing/api/providers
   баланса пропускаются — это оплата уже учтённого счёта. Права ключа: только на чтение
   (`/me`, `/me/bill*`, `/me/ovhAccount*`, `/services*`) — продление, отключение и оплата через
   панель не выдаются.
+- **ProCloud** (procloud.ru) — email и пароль входа в кабинет my.procloud.ru. ProCloud — white-label
+  облака на OpenStack, но API облаков цены не отдаёт, публичного каталога тарифов нет, а
+  API-пользователь выдаётся отдельно на каждую локацию. Кабинет же отвечает сразу по всем локациям и
+  содержит цены, баланс и реестр, поэтому синк ходит именно туда: вход через Keycloak (password
+  grant, как у сайта), дальше `api/server` (серверы всех локаций со статусом, планом и адресами),
+  `api/billing/active` (месячная цена каждой позиции) и `api/billing/history` (реестр). Серверы
+  получают страну по локации; оплачиваемые позиции без сервера в списке (дополнительные IP-адреса,
+  отдельные диски) синкаются отдельными услугами, чтобы суммы услуг сходились с итогом кабинета.
+  Двухфакторная защита входа не поддерживается. Валюта — RUB. Импортируются пополнения и счета из
+  истории биллинга; текущее накопление за идущий период (`unbilled`) пропускается — это ещё не
+  списанные деньги.
+- **Infomaniak** (infomaniak.com) — личный API-токен из [менеджера](https://manager.infomaniak.com/v3/ng/profile/user/token/list)
+  (профиль → API-токены), scope `products:read`, для валюты аккаунта ещё `userinfo:read`, для цен и
+  истории — `invoicing:invoice:read`; запросы идут в `https://api.infomaniak.com` с заголовком
+  `Authorization: Bearer`. Услуги — из `/1/products` (постранично): домены, хостинг, kSuite, Public
+  Cloud, сертификаты и прочее; имя — клиентское название услуги, дата списания — `expired_at`, тип —
+  `service_name`. Цен в самом `/1/products` нет — стоимость и период берутся из строк счетов
+  (`/1/invoicing/{аккаунт}/invoice/list`): строка привязывается к услуге по `item_id`, берётся сумма
+  последней оплаченной строки и период из `amount.period`. Без `invoicing:invoice:read` услуги
+  синхронизируются без цен — стоимость укажите вручную, синк её не перезапишет. Те же счета
+  импортируются как списания с привязкой к услуге. Баланса и кредитов в API нет. Валюта определяется
+  по стране профиля: CHF для Швейцарии и Лихтенштейна, иначе EUR.
+- **SKRIME** (skrime.eu) — API-ключ из [дашборда](https://skrime.eu/api) (раздел API); запросы идут
+  в `https://skrime.eu/api` с заголовком `Authorization: Bearer`. Ответы завёрнуты в
+  `{ response, state, data }`, код ошибки — в HTTP-статусе. Баланс — `balance.amount` из
+  `/account/user`, услуги — из `/product/all` (плоский список без пагинации, все типы сразу): цена
+  за период в `price`, сам период в месяцах — в `duration`, окончание — в `expireAt`, тип услуги —
+  в `type` (server, dedicated, webspace, domain, dns, ssl…). Из `/account/transactions`
+  импортируются пополнения (`credit`) и списания (`transaction`). Валюта — EUR.
 - **Manual** — без API, всё вводится руками.
 
 ## Telegram-уведомления

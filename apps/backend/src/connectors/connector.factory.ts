@@ -24,6 +24,7 @@ import type { HostbillCredentials } from './hostbill/hostbill.types';
 import { HostvdsConnector } from './hostvds/hostvds.connector';
 import type { HostvdsCredentials } from './hostvds/hostvds.types';
 import { HostupConnector } from './hostup/hostup.connector';
+import { InfomaniakConnector } from './infomaniak/infomaniak.connector';
 import { LinodeConnector } from './linode/linode.connector';
 import { NetcupConnector } from './netcup/netcup.connector';
 import { NetangelsConnector } from './netangels/netangels.connector';
@@ -35,8 +36,11 @@ import { OvhConnector } from './ovh/ovh.connector';
 import type { OvhCredentials } from './ovh/ovh.types';
 import { PorkbunConnector } from './porkbun/porkbun.connector';
 import type { PorkbunCredentials } from './porkbun/porkbun.types';
+import { ProcloudConnector } from './procloud/procloud.connector';
+import type { ProcloudCredentials } from './procloud/procloud.types';
 import { SelectelConnector } from './selectel/selectel.connector';
 import type { SelectelCredentials } from './selectel/selectel.types';
+import { SkrimeConnector } from './skrime/skrime.connector';
 import { SpaceshipConnector } from './spaceship/spaceship.connector';
 import type { SpaceshipCredentials } from './spaceship/spaceship.types';
 import { StormwallConnector } from './stormwall/stormwall.connector';
@@ -127,10 +131,17 @@ export class ConnectorFactory {
       case 'hostup':
         // HostUp secret is the raw API key (single string, sent as the Authorization Bearer header).
         return new HostupConnector(token);
+      case 'infomaniak':
+        // Infomaniak secret is the raw personal access token (Authorization Bearer header).
+        return new InfomaniakConnector(token);
       case 'hostvds':
         // HostVDS / CloudCore secret is JSON: { username, password, baseUrl? } — the OpenStack
         // user from the panel's API tab; baseUrl picks the brand.
         return new HostvdsConnector(JSON.parse(token) as HostvdsCredentials);
+      case 'procloud':
+        // ProCloud secret is JSON: { email, webPassword } — the my.procloud.ru sign-in, which
+        // answers for every location and carries the prices, balance and ledger.
+        return new ProcloudConnector(JSON.parse(token) as ProcloudCredentials);
       case 'datapacket':
         // DataPacket secret is the raw API key (single string, sent as the Authorization Bearer header).
         return new DatapacketConnector(token);
@@ -150,6 +161,9 @@ export class ConnectorFactory {
         // OVH secret is JSON: { applicationKey, applicationSecret, consumerKey, baseUrl? } — the
         // trio from https://api.ovhcloud.com/createToken/; baseUrl picks the API zone.
         return new OvhConnector(JSON.parse(token) as OvhCredentials);
+      case 'skrime':
+        // SKRIME secret is the raw API key (single string, sent as the Authorization Bearer header).
+        return new SkrimeConnector(token);
       default:
         throw new Error(`Connector for kind="${kind}" is not supported`);
     }
