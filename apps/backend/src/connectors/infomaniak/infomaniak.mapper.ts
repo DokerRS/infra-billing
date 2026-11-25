@@ -17,9 +17,16 @@ export function mapInfomaniakInvoice(inv: InfomaniakInvoice): PaymentData | null
   if (!inv.number) return null;
   const date = inv.createdAt != null ? new Date(inv.createdAt) : null;
   if (!date || Number.isNaN(date.getTime())) return null;
-  // A cancelled or zero invoice never charged the account.
+  // A cancelled/draft invoice never charged the account. Deliberately a denylist: the status
+  // vocabulary of this undocumented route is unverified, and dropping a real charge because of an
+  // unknown word would hide spend.
   const status = inv.status?.toLowerCase();
-  if (status && status !== 'paid' && status !== 'validated' && status !== 'active') return null;
+  if (
+    status &&
+    ['cancelled', 'canceled', 'void', 'draft', 'aborted', 'refused', 'rejected'].includes(status)
+  ) {
+    return null;
+  }
   const amount = (inv.amountInclTax ?? inv.amount)?.abs();
   if (!amount || amount.isZero() || !amount.isFinite()) return null;
   const onlyLine = inv.lines.length === 1 ? inv.lines[0] : undefined;
