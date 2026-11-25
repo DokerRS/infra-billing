@@ -1,12 +1,13 @@
 import { Logger } from '@nestjs/common';
 import axios, { type AxiosInstance } from 'axios';
 import { REQUEST_TIMEOUT_MS } from '../common/http';
-import { Account, Connector, ServiceData } from '../connector.interface';
-import { mapIntezioService, money } from './intezio.mapper';
+import { Account, Connector, PaymentData, ServiceData } from '../connector.interface';
+import { mapIntezioPayments, mapIntezioService, money } from './intezio.mapper';
 import {
   INTEZIO_CURRENCY,
   INTEZIO_PANEL_URL,
   IntezioCredentials,
+  IntezioPayment,
   IntezioService,
   IntezioUser,
   describeIntezioShape,
@@ -36,9 +37,8 @@ function cookieHeader(jar: Map<string, string>): string {
  * whose clearance cookies arrive on the same response, so the whole jar is kept and re-sent rather
  * than only the session cookie.
  *
- * `/api/auth/me` carries the balance and `/api/services/user` the servers with their monthly cost.
- * The cabinet exposes no ledger of any kind — there is no payments, invoice or history endpoint — so
- * this connector has no `fetchPayments`.
+ * `/api/auth/me` carries the balance, `/api/services/user` the servers with their monthly cost and
+ * `/api/pay/list` the whole balance history, which is what `fetchPayments` reads.
  */
 export class IntezioConnector implements Connector {
   private readonly logger = new Logger(IntezioConnector.name);
@@ -82,18 +82,42 @@ export class IntezioConnector implements Connector {
   }
 
   async fetchServices(signal: AbortSignal): Promise<ServiceData[]> {
+    const services: ServiceData[] = [];
+    for (const s of await this.serviceRows(signal)) {
+      const service = s ? mapIntezioService(s, INTEZIO_CURRENCY) : null;
+      if (service) services.push(service);
+    }
+    return services;
+  }
+
+  /**
+   * The ledger is keyed by the server's short name in the description, so the orders are read too
+   * in order to resolve those names to service ids. A row whose server was since deleted simply
+   * stays unlinked.
+   */
+  async fetchPayments(signal: AbortSignal): Promise<PaymentData[]> {
+    const rows = await this.get<IntezioPayment[]>('/api/pay/list', signal);
+    if (!Array.isArray(rows)) {
+      throw new Error(
+        `Intezio: unexpected /api/pay/list response (${describeIntezioShape(rows)})`,
+      );
+    }
+    const serviceIdsByName = new Map<string, string>();
+    for (const s of await this.serviceRows(signal)) {
+      const name = s?.name?.trim().toLowerCase();
+      if (name && s.id !== undefined && s.id !== null) serviceIdsByName.set(name, String(s.id));
+    }
+    return mapIntezioPayments(rows, INTEZIO_CURRENCY, serviceIdsByName);
+  }
+
+  private async serviceRows(signal: AbortSignal): Promise<IntezioService[]> {
     const rows = await this.get<IntezioService[]>('/api/services/user', signal);
     if (!Array.isArray(rows)) {
       throw new Error(
         `Intezio: unexpected /api/services/user response (${describeIntezioShape(rows)})`,
       );
     }
-    const services: ServiceData[] = [];
-    for (const s of rows) {
-      const service = s ? mapIntezioService(s, INTEZIO_CURRENCY) : null;
-      if (service) services.push(service);
-    }
-    return services;
+    return rows;
   }
 
   /** GET with the session cookie, signing in first and retrying once on an expired session. */

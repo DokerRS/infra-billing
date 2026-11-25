@@ -63,6 +63,21 @@ export interface IntezioService {
 }
 
 /**
+ * `GET /api/pay/list`. One row per balance movement, newest first. `amount` is signed: negative is
+ * a write-off, positive money arriving. The cabinet itself classifies a row by that sign alone, and
+ * `description` carries the human text ("Продление сервера pl на 1 мес.") whose server token links
+ * a charge to its service. The endpoint ignores every pagination parameter and returns the whole
+ * history, which is short.
+ */
+export interface IntezioPayment {
+  id?: number;
+  amount?: number | string;
+  description?: string;
+  status?: number;
+  created_at?: string;
+}
+
+/**
  * Country of a location, keyed by the lowercased English `location_name`. The catalogue also names
  * locations in Russian, but the rows the connector reads always carry the English one.
  */

@@ -1,6 +1,6 @@
 import Decimal from 'decimal.js';
-import { ServiceData } from '../connector.interface';
-import { INTEZIO_LOCATION_COUNTRY, IntezioService } from './intezio.types';
+import { PaymentData, ServiceData } from '../connector.interface';
+import { INTEZIO_LOCATION_COUNTRY, IntezioPayment, IntezioService } from './intezio.types';
 
 export function money(raw: unknown): Decimal | undefined {
   if ((typeof raw !== 'number' && typeof raw !== 'string') || raw === '') return;
@@ -30,8 +30,8 @@ export function intezioCountryCode(s: IntezioService): string | undefined {
 }
 
 /**
- * An ordered VPS as our domain Service. The cabinet has no ledger, so `cost` of the order is the
- * only price there is; `paid_up_to` is when the current period runs out.
+ * An ordered VPS as our domain Service. `cost` is what one month costs and `paid_up_to` when the
+ * current period runs out.
  */
 export function mapIntezioService(s: IntezioService, currency: string): ServiceData | null {
   if (s.id === undefined || s.id === null) return null;
@@ -61,4 +61,49 @@ export function mapIntezioService(s: IntezioService, currency: string): ServiceD
       created: s.created_at ?? null,
     },
   };
+}
+
+/**
+ * The server a ledger row concerns, from its description. Intezio names the server in every
+ * per-server text ("Продление сервера pl на 1 мес.", "Дополнительный трафик для сервера pl: 2 ТБ")
+ * and that token is exactly the order's `name`, so it is what links a charge to its service.
+ */
+export function intezioPaymentServerName(description: string | undefined): string | undefined {
+  const token = description?.match(/сервера\s+([^:\s]+)/i)?.[1];
+  return token?.toLowerCase();
+}
+
+/**
+ * The balance ledger as payments. `amount` is signed and the cabinet itself splits the rows purely
+ * by its sign, so the sign decides the type; the figure is stored as a positive amount either way.
+ * Rows with no id or no date are skipped — neither can be upserted idempotently.
+ */
+export function mapIntezioPayments(
+  rows: IntezioPayment[],
+  currency: string,
+  serviceIdsByName: Map<string, string>,
+): PaymentData[] {
+  const out: PaymentData[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (row?.id === undefined || row.id === null) continue;
+    const amount = money(row.amount);
+    if (!amount || amount.isZero()) continue;
+    const date = parseDate(row.created_at);
+    if (!date) continue;
+    let externalId = `pay:${row.id}`;
+    for (let n = 0; seen.has(externalId); n += 1) externalId = `pay:${row.id}#${n + 1}`;
+    seen.add(externalId);
+    const server = intezioPaymentServerName(row.description);
+    out.push({
+      externalId,
+      type: amount.isNegative() ? 'charge' : 'topup',
+      amount: amount.abs().toDecimalPlaces(2),
+      currency,
+      date,
+      description: row.description,
+      serviceExternalId: server ? serviceIdsByName.get(server) : undefined,
+    });
+  }
+  return out;
 }

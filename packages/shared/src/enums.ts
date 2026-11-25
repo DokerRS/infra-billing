@@ -72,6 +72,7 @@ export const PROVIDER_KINDS_WITH_PAYMENT_IMPORT = [
   'procloud',
   'skrime',
   'astravps',
+  'intezio',
 ] as const satisfies readonly ProviderKind[];
 
 const paymentImportKindSet = new Set<string>(PROVIDER_KINDS_WITH_PAYMENT_IMPORT);

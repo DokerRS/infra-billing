@@ -138,7 +138,7 @@ export const providers = {
         'The password of the same sign-in. 2FA is not supported — the sync signs in the way the website does.',
       intezioEmail: 'Cabinet sign-in email',
       intezioEmailDesc:
-        'The email you sign in to intezio.net with. Intezio publishes no API, so the cabinet is the only source of prices — there is no key to fill in. The cabinet has no payment history, so only the balance and servers sync.',
+        'The email you sign in to intezio.net with. Intezio publishes no API, so the cabinet is the only source of prices — there is no key to fill in. Balance, servers and the payment history are read from it.',
       intezioWebPassword: 'Cabinet password',
       intezioWebPasswordDesc:
         'The password of the same sign-in. 2FA is not supported — the sync signs in the way the website does.',
@@ -475,7 +475,7 @@ export const providers = {
         'Пароль от этого же входа. 2FA не поддерживается: синк входит так же, как сайт.',
       intezioEmail: 'Email для входа в кабинет',
       intezioEmailDesc:
-        'Email, с которым вы входите в intezio.net. Публичного API у Intezio нет, поэтому кабинет — единственный источник цен, ключ заполнять не нужно. Истории платежей в кабинете нет, поэтому синхронизируются только баланс и серверы.',
+        'Email, с которым вы входите в intezio.net. Публичного API у Intezio нет, поэтому кабинет — единственный источник цен, ключ заполнять не нужно. Из него читаются баланс, серверы и история платежей.',
       intezioWebPassword: 'Пароль от кабинета',
       intezioWebPasswordDesc:
         'Пароль от этого же входа. 2FA не поддерживается: синк входит так же, как сайт.',
