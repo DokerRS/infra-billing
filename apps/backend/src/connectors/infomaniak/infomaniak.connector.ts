@@ -4,10 +4,11 @@ import { Account, Connector, ServiceData } from '../connector.interface';
 import { mapInfomaniakProduct } from './infomaniak.mapper';
 import {
   describeInfomaniakIssue,
+  describeInfomaniakShape,
   infomaniakErrorSchema,
   infomaniakProfileSchema,
   infomaniakProductsResponseSchema,
-  type InfomaniakProduct,
+  readInfomaniakProduct,
 } from './infomaniak.types';
 
 const BASE_URL = 'https://api.infomaniak.com';
@@ -78,26 +79,34 @@ export class InfomaniakConnector implements Connector {
   }
 
   async fetchServices(signal: AbortSignal): Promise<ServiceData[]> {
-    const products: InfomaniakProduct[] = [];
+    const services: ServiceData[] = [];
     for (let page = 1; page <= MAX_PAGES; page++) {
       const { data } = await this.http.get('/1/products', {
         params: { page, per_page: PAGE_SIZE, with: 'fqdn' },
         signal,
       });
+      // A failure can arrive as HTTP 200 with `result: 'error'`; report its reason, not the shape.
+      if (data && typeof data === 'object' && !Array.isArray(data) && data.result === 'error') {
+        const parsed = infomaniakErrorSchema.safeParse(data);
+        const detail = parsed.success ? parsed.data.error : undefined;
+        throw new Error(`Infomaniak: ${detail?.description || detail?.code || 'error'}`);
+      }
       const parsed = infomaniakProductsResponseSchema.safeParse(data);
       if (!parsed.success) {
-        const shape = data && typeof data === 'object' ? Object.keys(data).join(',') : typeof data;
         throw new Error(
           `Infomaniak: unexpected /1/products response [${describeInfomaniakIssue(
             parsed.error,
-          )}] (fields: ${shape})`,
+          )}] (fields: ${describeInfomaniakShape(data)})`,
         );
       }
       const batch = parsed.data.data;
-      products.push(...batch);
-      const pages = parsed.data.pages;
-      if (pages != null ? page >= pages : batch.length < PAGE_SIZE) break;
+      for (const raw of batch) {
+        const product = readInfomaniakProduct(raw);
+        if (product) services.push(mapInfomaniakProduct(product));
+      }
+      const pages = Number(parsed.data.pages);
+      if (Number.isFinite(pages) ? page >= pages : batch.length < PAGE_SIZE) break;
     }
-    return products.map(mapInfomaniakProduct);
+    return services;
   }
 }

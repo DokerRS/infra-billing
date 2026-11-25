@@ -1,7 +1,7 @@
 import { ServiceData } from '../connector.interface';
 import { InfomaniakProduct } from './infomaniak.types';
 
-function fromUnix(ts?: number | null): Date | null {
+function fromUnix(ts?: number): Date | null {
   if (ts == null) return null;
   const d = new Date(ts * 1000);
   return Number.isNaN(d.getTime()) ? null : d;
@@ -13,28 +13,28 @@ function fromUnix(ts?: number | null): Date | null {
  * is the renewal date, and `service_name` is the product class used as the service type.
  */
 export function mapInfomaniakProduct(p: InfomaniakProduct): ServiceData {
-  const externalId = p.unique_id ?? p.id;
+  const externalId = p.uniqueId ?? p.id;
   const name =
-    p.customer_name || p.internal_name || `${p.service_name ?? 'product'} #${externalId ?? '?'}`;
+    p.customerName || p.internalName || `${p.serviceName ?? 'product'} #${externalId ?? '?'}`;
   return {
     externalId: externalId ?? `product-${name}`,
     name,
-    type: p.service_name ?? 'product',
-    nextBilling: fromUnix(p.expired_at),
+    type: p.serviceName ?? 'product',
+    nextBilling: fromUnix(p.expiredAt),
     meta: {
-      serviceId: p.service_id,
-      accountId: p.account_id,
-      productName: p.internal_name ?? null,
-      isFree: p.is_free,
-      isTrial: p.is_trial,
-      isZeroPrice: p.is_zero_price,
-      isLocked: p.is_locked,
-      operationInProgress: p.has_operation_in_progress,
+      serviceId: p.serviceId ?? null,
+      accountId: p.accountId ?? null,
+      productName: p.internalName ?? null,
+      isFree: p.isFree ?? null,
+      isTrial: p.isTrial ?? null,
+      isZeroPrice: p.isZeroPrice ?? null,
+      isLocked: p.isLocked ?? null,
+      operationInProgress: p.operationInProgress ?? null,
       ...(p.status ? { status: p.status } : {}),
       ...(p.fqdn ? { fqdn: p.fqdn } : {}),
       ...(p.description ? { description: p.description } : {}),
-      ...(p.bill_reference ? { billReference: p.bill_reference } : {}),
-      ...(p.parent_service_name ? { parentServiceName: p.parent_service_name } : {}),
+      ...(p.billReference ? { billReference: p.billReference } : {}),
+      ...(p.parentServiceName ? { parentServiceName: p.parentServiceName } : {}),
       ...(p.tags?.length ? { tags: p.tags } : {}),
     },
   };
