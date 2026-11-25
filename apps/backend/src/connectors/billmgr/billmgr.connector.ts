@@ -11,6 +11,7 @@ import {
   currencyFromAmount,
   firstNumber,
   isCaptchaError,
+  isFuncUnavailable,
   isPaymentCredited,
   parseBillmgrDate,
   val,
@@ -311,7 +312,10 @@ export class BillmgrConnector implements Connector {
 
   /**
    * Page through a BILLmanager list func, accumulating doc.elem rows. Lists paginate with
-   * p_num/p_cnt and report the total in p_elems; request a large page and stop at the last one.
+   * p_num/p_cnt and report the total in p_elems. We ask for a large page, but an install is free
+   * to answer with its own smaller page size, so the reported total — not the requested one —
+   * decides when the list is complete. Without a usable total, a short page ends the walk.
+   * Callers dedupe by id, so an install that ignores p_num cannot double-count.
    */
   private async listAll(
     func: string,
@@ -328,8 +332,13 @@ export class BillmgrConnector implements Connector {
       });
       const batch = asArray(data?.doc?.elem) as Record<string, unknown>[];
       rows.push(...batch);
+      if (batch.length === 0) break;
       const total = Number(val(data?.doc?.p_elems));
-      if (batch.length < PAGE || (Number.isFinite(total) && rows.length >= total)) break;
+      if (Number.isFinite(total) && total > 0) {
+        if (rows.length >= total) break;
+      } else if (batch.length < PAGE) {
+        break;
+      }
     }
     return rows;
   }
@@ -475,14 +484,21 @@ export class BillmgrConnector implements Connector {
     // install-wide, so dedupe by externalId.
     const seen = new Set<string>();
     for (const { func, type } of await this.discoverItemFuncs(signal)) {
-      let data: BillmgrDoc;
+      let rows: Record<string, unknown>[];
       try {
-        data = await this.call(func, signal);
-      } catch {
-        continue; // a type unavailable on this install, skip
+        // Paged: an install serves a list one page at a time, and reading only the first page
+        // would hand the sync a partial account — everything left off is then marked inactive.
+        rows = await this.listAll(func, signal);
+      } catch (err) {
+        // Only a func this install does not have is skipped. Any other failure (panel error,
+        // timeout, a filter the account cannot use) must fail the sync: silently dropping the
+        // func's services would deactivate every one of them.
+        if (!isFuncUnavailable(err)) throw err;
+        this.logger.warn(`BILLmanager: func=${func} unavailable, skipped: ${billmgrError(err)}`);
+        continue;
       }
-      for (const e of asArray(data?.doc?.elem)) {
-        const svc = mapBillmgrService(e as Record<string, unknown>, type);
+      for (const e of rows) {
+        const svc = mapBillmgrService(e, type);
         if (!svc.externalId || seen.has(svc.externalId)) continue;
         seen.add(svc.externalId);
         out.push(svc);

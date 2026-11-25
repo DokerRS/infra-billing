@@ -10,6 +10,7 @@ import {
   currencyFromAmount,
   firstNumber,
   isCaptchaError,
+  isFuncUnavailable,
   isPaymentCredited,
   isPrivilegeError,
   parseBillmgrDate,
@@ -245,13 +246,14 @@ export class BillmgrCookieConnector implements Connector {
   ):
     | { state: 'ok' }
     | { state: 'expired' }
-    | { state: 'error'; message: string; privilege: boolean } {
+    | { state: 'error'; message: string; privilege: boolean; raw: unknown } {
     if (typeof data === 'string') {
       return /<html|<!doctype/i.test(data.slice(0, 512))
         ? { state: 'expired' }
         : {
             state: 'error',
             privilege: false,
+            raw: data,
             message:
               'the panel answered with plain text instead of JSON — check that the base URL points at the /billmgr endpoint',
           };
@@ -265,6 +267,7 @@ export class BillmgrCookieConnector implements Connector {
             state: 'error',
             message: billmgrError(doc.error),
             privilege: isPrivilegeError(doc.error),
+            raw: doc.error,
           };
     }
     if (
@@ -369,7 +372,8 @@ export class BillmgrCookieConnector implements Connector {
       return retry as BillmgrDoc;
     }
     if (verdict.state === 'error') {
-      throw new Error(`BILLmanager (${func}): ${verdict.message}`);
+      // `cause` keeps the raw doc.error so callers can classify it (see isFuncUnavailable).
+      throw new Error(`BILLmanager (${func}): ${verdict.message}`, { cause: verdict.raw });
     }
     return data as BillmgrDoc;
   }
@@ -390,8 +394,13 @@ export class BillmgrCookieConnector implements Connector {
       });
       const batch = asArray(data?.doc?.elem) as Record<string, unknown>[];
       rows.push(...batch);
+      if (batch.length === 0) break;
       const total = Number(val(data?.doc?.p_elems));
-      if (batch.length < PAGE || (Number.isFinite(total) && rows.length >= total)) break;
+      if (Number.isFinite(total) && total > 0) {
+        if (rows.length >= total) break;
+      } else if (batch.length < PAGE) {
+        break;
+      }
     }
     return rows;
   }
@@ -548,14 +557,21 @@ export class BillmgrCookieConnector implements Connector {
     const out: ServiceData[] = [];
     const seen = new Set<string>();
     for (const { func, type } of await this.discoverItemFuncs(signal)) {
-      let data: BillmgrDoc;
+      let rows: Record<string, unknown>[];
       try {
-        data = await this.call(func, signal);
-      } catch {
-        continue; // a type unavailable on this install, skip
+        // Paged: an install serves a list one page at a time, and reading only the first page
+        // would hand the sync a partial account — everything left off is then marked inactive.
+        rows = await this.listAll(func, signal);
+      } catch (err) {
+        // Only a func this install does not have is skipped. Any other failure (panel error,
+        // timeout, a filter the account cannot use) must fail the sync: silently dropping the
+        // func's services would deactivate every one of them.
+        if (!isFuncUnavailable(err)) throw err;
+        this.logger.warn(`BILLmanager: func=${func} unavailable, skipped: ${billmgrError(err)}`);
+        continue;
       }
-      for (const e of asArray(data?.doc?.elem)) {
-        const svc = mapBillmgrService(e as Record<string, unknown>, type);
+      for (const e of rows) {
+        const svc = mapBillmgrService(e, type);
         if (!svc.externalId || seen.has(svc.externalId)) continue;
         seen.add(svc.externalId);
         out.push(svc);
