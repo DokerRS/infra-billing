@@ -39,15 +39,6 @@
 - **MCP-сервер** на `/api/mcp`: любой MCP-клиент смотрит расходы, балансы и сервисы, а с токеном
   полного доступа — заводит сервисы и платежи и запускает синк.
 
-## RWP Shop
-
-[<img src="apps/frontend/src/assets/rwp-logo.svg" width="56" align="left" alt="RWP Shop">](https://rwp.rw)
-
-[**RWP Shop**](https://rwp.rw) — лучший многофункциональный бот для VPN-коммерции на Remnawave:
-личный кабинет клиента, платежи, подписки, поддержка, партнёрская программа и аналитика. Работает
-в браузере и как Mini App в Telegram. Есть интеграция с Infra Billing.
-**Скидка 15%** по промокоду **`MISH`**.
-
 ## Стек
 
 - **Backend:** NestJS 11 (Node 22) · Prisma 7 · PostgreSQL 18 · zod (`nestjs-zod`) · axios · grammY
