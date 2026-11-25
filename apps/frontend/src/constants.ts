@@ -37,6 +37,8 @@ const PROVIDER_KINDS: ProviderKind[] = [
   'procloud',
   'infomaniak',
   'skrime',
+  'astravps',
+  'intezio',
   'manual',
 ];
 

@@ -225,6 +225,8 @@ export const common = {
         procloud: 'ProCloud',
         infomaniak: 'Infomaniak',
         skrime: 'SKRIME',
+        astravps: 'AstraVPS',
+        intezio: 'Intezio',
         manual: 'Manual',
       },
       rateSource: {
@@ -455,6 +457,8 @@ export const common = {
         procloud: 'ProCloud',
         infomaniak: 'Infomaniak',
         skrime: 'SKRIME',
+        astravps: 'AstraVPS',
+        intezio: 'Intezio',
         manual: 'Ручной',
       },
       rateSource: {

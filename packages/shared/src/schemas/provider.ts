@@ -100,6 +100,8 @@ export type ProviderCredentialsReveal = z.infer<typeof providerCredentialsReveal
 // Infomaniak uses `token` alone (a personal API token sent as `Authorization: Bearer`); the API has
 // no balance, so nothing else is needed.
 // SKRIME uses `token` alone (the dashboard API key, sent as `Authorization: Bearer`).
+// AstraVPS and Intezio use `email` + `webPassword` (their customer-cabinet sign-in) — neither
+// hoster publishes an API, so the cabinet session is the only source of prices and history.
 // None are ever echoed back.
 const credentialFields = {
   token: z.string().min(1).describe('API token').optional(),
@@ -117,8 +119,8 @@ const credentialFields = {
   apiPassword: z.string().min(1).describe('Beget API password').optional(),
   // Porkbun / Spaceship: the secret API key, paired with `token` (the API key).
   secretKey: z.string().min(1).describe('Secret API key').optional(),
-  // HostVDS: optional website sign-in; ProCloud: the only sign-in it has. Both APIs miss the
-  // billing data, so the panel session provides the balance, prices and ledger.
+  // HostVDS: optional website sign-in; ProCloud/AstraVPS/Intezio: the only sign-in they have. Those
+  // APIs miss the billing data, so the panel session provides the balance, prices and ledger.
   email: z.string().email().describe('Website sign-in email').optional(),
   webPassword: z.string().min(1).describe('Website sign-in password').optional(),
   useCatalogNames: z.boolean().describe('OpenRouter: use catalog display names').optional(),

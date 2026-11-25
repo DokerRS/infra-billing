@@ -1084,6 +1084,72 @@ export function ProviderCredentialFields({
     );
   }
 
+  if (kind === 'astravps') {
+    return (
+      <>
+        <Field
+          id="cred-email"
+          label={t('providers.field.astravpsEmail')}
+          description={t('providers.field.astravpsEmailDesc')}
+          link="https://astravps.co"
+        >
+          <Input
+            id="cred-email"
+            type="email"
+            placeholder="you@example.com"
+            {...form.register('email')}
+          />
+        </Field>
+        <Field
+          id="cred-web-password"
+          label={t('providers.field.astravpsWebPassword')}
+          description={t('providers.field.astravpsWebPasswordDesc')}
+        >
+          <SecretFormField
+            form={form}
+            name="webPassword"
+            id="cred-web-password"
+            hasStored={storedSecrets?.hasWebPassword}
+            reveal={reveal}
+          />
+        </Field>
+      </>
+    );
+  }
+
+  if (kind === 'intezio') {
+    return (
+      <>
+        <Field
+          id="cred-email"
+          label={t('providers.field.intezioEmail')}
+          description={t('providers.field.intezioEmailDesc')}
+          link="https://intezio.net"
+        >
+          <Input
+            id="cred-email"
+            type="email"
+            placeholder="you@example.com"
+            {...form.register('email')}
+          />
+        </Field>
+        <Field
+          id="cred-web-password"
+          label={t('providers.field.intezioWebPassword')}
+          description={t('providers.field.intezioWebPasswordDesc')}
+        >
+          <SecretFormField
+            form={form}
+            name="webPassword"
+            id="cred-web-password"
+            hasStored={storedSecrets?.hasWebPassword}
+            reveal={reveal}
+          />
+        </Field>
+      </>
+    );
+  }
+
   if (kind === 'beget') {
     return (
       <>

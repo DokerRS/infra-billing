@@ -79,6 +79,8 @@ export const DEFAULT_LOGIN_URLS: Record<string, string> = {
   procloud: 'https://my.procloud.ru',
   infomaniak: 'https://manager.infomaniak.com/v3/ng/profile/user/token/list',
   skrime: 'https://skrime.eu/api',
+  astravps: 'https://astravps.co/dashboard',
+  intezio: 'https://intezio.net/dashboard',
 };
 
 export const EMPTY_IDENTITY: IdentityFormValues = {
@@ -242,6 +244,10 @@ export function validateAccountCredentials(
     return t('providers.err.ovhCreds');
   if (requireCreds && kind === 'procloud' && !(v.email && v.webPassword))
     return t('providers.err.procloudCreds');
+  if (requireCreds && kind === 'astravps' && !(v.email && v.webPassword))
+    return t('providers.err.astravpsCreds');
+  if (requireCreds && kind === 'intezio' && !(v.email && v.webPassword))
+    return t('providers.err.intezioCreds');
   if (requireCreds && kind === 'billmgr-cookie' && !(v.baseUrl && v.cookie))
     return t('providers.err.billmgrCookieCreds');
   return null;
