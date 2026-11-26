@@ -23,6 +23,7 @@ import { Account, Connector, PaymentData, ServiceData } from '../connector.inter
 import {
   billmgrSessionId,
   replaceBillmgrSessionId,
+  withoutBillmgrSessionId,
   type BillmgrCookieCredentials,
 } from './billmgr-cookie.types';
 
@@ -121,6 +122,9 @@ export class BillmgrCookieConnector implements Connector {
   // The renewal succeeded this run (func=auth gave a working session). Refusal messages use it to
   // tell "the renewed session has no rights" apart from "we could not renew at all".
   private sessionRenewed = false;
+  // Why the best-effort renewal failed this run, so the sync failure can say it: the panel's answer
+  // to func=auth is the one thing the owner needs in order to fix the credentials.
+  private refreshFailure: string | null = null;
 
   constructor(creds: BillmgrCookieCredentials) {
     this.creds = creds;
@@ -257,7 +261,8 @@ export class BillmgrCookieConnector implements Connector {
       await this.refresh(signal);
       return true;
     } catch (err) {
-      this.logger.warn(`BILLmanager: session renewal failed: ${(err as Error).message}`);
+      this.refreshFailure = (err as Error).message;
+      this.logger.warn(`BILLmanager: session renewal failed: ${this.refreshFailure}`);
       return false;
     }
   }
@@ -342,8 +347,16 @@ export class BillmgrCookieConnector implements Connector {
     if (!username || !password) throw new Error(COOKIE_EXPIRED_MESSAGE);
 
     const body = new URLSearchParams({ func: 'auth', username, password, out: 'json' });
+    // The login is sent without the session pair. An install that stopped resolving the pasted id
+    // answers *every* request that carries it — func=auth included — with a session error, so
+    // keeping the dead cookie in the header could block the renewal before the login was checked.
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    };
+    const cookieWithoutSession = withoutBillmgrSessionId(this.cookie);
+    if (cookieWithoutSession) headers.Cookie = cookieWithoutSession;
     const { data } = await this.http.post<BillmgrDoc>('', body.toString(), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers,
       signal,
     });
     if (data?.doc?.error) {
@@ -351,7 +364,15 @@ export class BillmgrCookieConnector implements Connector {
       throw new Error(`BILLmanager: func=auth refresh failed (${billmgrError(data.doc.error)})`);
     }
     let id = data?.doc?.auth?.$id ?? data?.doc?.session?.$id;
-    if (!id) throw new Error(COOKIE_EXPIRED_MESSAGE);
+    if (!id) {
+      const verdict = this.inspect(data);
+      throw new Error(
+        verdict.state === 'error'
+          ? `BILLmanager: func=auth refresh failed (${verdict.message})`
+          : 'BILLmanager: func=auth returned no session id — the panel did not accept the stored ' +
+            'login/password, or the base URL does not point at the panel CGI endpoint',
+      );
+    }
 
     this.adoptSession(id);
     let whoami = await this.raw('whoami', signal);
@@ -689,11 +710,17 @@ export class BillmgrCookieConnector implements Connector {
         'BILLmanager: a freshly renewed session was refused by every service list, so nothing was ' +
         'read. The sync was aborted to keep the services active — ask the hoster for view rights.'
       );
-    if (this.creds.username && this.creds.password)
+    if (this.creds.username && this.creds.password) {
+      // The panel's own words are the actionable part, so they go into the message rather than
+      // only the log. Its errors are all prefixed with the connector name, which reads badly
+      // mid-sentence.
+      const why = (this.refreshFailure ?? '').replace(/^BILLmanager:\s*/, '');
       return (
-        'BILLmanager: every service list was refused and renewing the session failed (see the sync ' +
-        'log for why). The sync was aborted to keep the services active.'
+        'BILLmanager: every service list was refused and the session could not be renewed' +
+        (why ? `: ${why}` : ' (see the sync log for why)') +
+        '. The sync was aborted to keep the services active.'
       );
+    }
     return (
       'BILLmanager: every service list was refused and the session cannot be renewed — add the panel ' +
       'login/password in the provider settings, or paste a fresh cookie. Services were kept active.'
