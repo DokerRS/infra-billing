@@ -57,4 +57,13 @@ export interface Connector {
    * the run just renews again next time.
    */
   onCredentialsRenewed?: (credentialsJson: string) => void;
+  /**
+   * Optional keep-alive for providers that authenticate with a session the panel drops on idle
+   * (a cookie). The sync runs far less often than that lifetime, so between runs the session is
+   * left to die — and some panels refuse to hand out a new one without a human (CAPTCHA). A
+   * scheduled call to this method, more often than the idle timeout, spends one cheap
+   * authenticated request to keep the session alive. It must not write to the database and must
+   * not throw for a session that is merely refused rights; report the state instead.
+   */
+  keepAlive?(signal: AbortSignal): Promise<'alive' | 'renewed' | 'dead'>;
 }

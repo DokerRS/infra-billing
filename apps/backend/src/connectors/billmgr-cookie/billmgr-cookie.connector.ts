@@ -800,4 +800,31 @@ export class BillmgrCookieConnector implements Connector {
 
     return out;
   }
+
+  /**
+   * {@link Connector.keepAlive} with one func=menu request: it is the cheapest call any client
+   * role can reach, and even a privilege refusal proves the panel resolved the session — which is
+   * exactly what resets its idle timer. A session the panel no longer resolves is renewed once,
+   * when a login/password is stored (and the fresh cookie goes out through onCredentialsRenewed).
+   */
+  async keepAlive(signal: AbortSignal): Promise<'alive' | 'renewed' | 'dead'> {
+    if (!this.sessionId) return 'dead';
+    try {
+      const verdict = this.inspect(await this.raw('menu', signal));
+      if (verdict.state === 'ok' || (verdict.state === 'error' && verdict.privilege)) {
+        return 'alive';
+      }
+      if (verdict.state === 'error') {
+        // The panel answered as an authenticated user and refused something else, or hit its own
+        // error. Either way it resolved the session, which is what resets the idle timer.
+        this.logger.warn(`BILLmanager keep-alive: func=menu answered ${verdict.message}`);
+        return 'alive';
+      }
+    } catch (err) {
+      this.logger.warn(`BILLmanager keep-alive: func=menu failed: ${(err as Error).message}`);
+      return 'dead';
+    }
+    // The session is gone. Renewal is the only way back, and it needs the stored login/password.
+    return (await this.tryRefresh(signal)) ? 'renewed' : 'dead';
+  }
 }
