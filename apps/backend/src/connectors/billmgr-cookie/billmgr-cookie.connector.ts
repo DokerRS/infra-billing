@@ -350,11 +350,12 @@ export class BillmgrCookieConnector implements Connector {
     // The login is sent without the session pair. An install that stopped resolving the pasted id
     // answers *every* request that carries it — func=auth included — with a session error, so
     // keeping the dead cookie in the header could block the renewal before the login was checked.
+    // Assigned even when nothing but the session was pasted: an empty value still overrides the
+    // instance's default Cookie header, which is the dead session being replaced.
     const headers: Record<string, string> = {
       'Content-Type': 'application/x-www-form-urlencoded',
+      Cookie: withoutBillmgrSessionId(this.cookie),
     };
-    const cookieWithoutSession = withoutBillmgrSessionId(this.cookie);
-    if (cookieWithoutSession) headers.Cookie = cookieWithoutSession;
     const { data } = await this.http.post<BillmgrDoc>('', body.toString(), {
       headers,
       signal,
