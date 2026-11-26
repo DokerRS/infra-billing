@@ -174,6 +174,13 @@ export class BillmgrCookieConnector implements Connector {
   private async ensureSession(signal: AbortSignal): Promise<Record<string, string>> {
     if (!this.sessionId) throw new Error(NO_SESSION_COOKIE_MESSAGE);
     if (!this.whoamiDoc && !this.whoamiForbidden) await this.probe(signal);
+    // Proactive renewal: a BILLmanager session dies on idle, and the sync interval can easily be
+    // longer than that lifetime, so a cookie left alone expires between runs — and once it is
+    // dead, some installs stop accepting a renewal from this server at all. So while the session
+    // is still alive, renew it every run when login/password are stored; the fresh cookie is
+    // handed to the sync through onCredentialsRenewed and the pasted one never has to expire.
+    // A no-op when credentials are absent or a renewal already ran this run (see canRefresh).
+    await this.tryRefresh(signal);
     return this.authParams();
   }
 
