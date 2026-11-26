@@ -98,8 +98,9 @@ function isSessionRejected(err: unknown): boolean {
  * Everything after auth (lists, ledgers, sticky filters, menu discovery) is the same CGI API as
  * the API connector, so those helpers are reused from it. The cookie is the whole cost of this
  * trade: it expires. When it does, and login/password were stored, the connector re-authenticates
- * with func=auth (confirming OTP 2FA when a TOTP secret is set) and keeps the new session id for
- * the rest of the run; without credentials it fails with COOKIE_EXPIRED_MESSAGE instead of
+ * with func=auth (confirming OTP 2FA when a TOTP secret is set), keeps the new session id for the
+ * rest of the run, and hands the renewed cookie to the sync via {@link onCredentialsRenewed} so it
+ * replaces the stored one; without credentials it fails with COOKIE_EXPIRED_MESSAGE instead of
  * quietly reporting an empty account.
  */
 export class BillmgrCookieConnector implements Connector {
@@ -108,6 +109,8 @@ export class BillmgrCookieConnector implements Connector {
   private readonly creds: BillmgrCookieCredentials;
   private cookie: string;
   private sessionId: string | null;
+  /** Set by the sync: receives the full credentials JSON with the renewed cookie (see Connector). */
+  onCredentialsRenewed?: (credentialsJson: string) => void;
   private whoamiDoc: BillmgrDoc | null = null; // cached by the auth-verification probe
   // whoami is refused for this account (see ACCOUNT_INFO_FORBIDDEN_MESSAGE). The session itself is
   // fine — BILLmanager answered as an authenticated user — so the rest of the sync must go on.
@@ -371,6 +374,14 @@ export class BillmgrCookieConnector implements Connector {
       this.adoptWhoami(whoami);
     }
     this.sessionRenewed = true;
+    // The renewed session is confirmed working — hand the whole credentials blob with the fresh
+    // cookie to the sync so it replaces the one the owner pasted. Best-effort by contract: a
+    // failure here only means the next run renews again, so it must not fail this sync.
+    try {
+      this.onCredentialsRenewed?.(JSON.stringify({ ...this.creds, cookie: this.cookie }));
+    } catch (err) {
+      this.logger.warn(`BILLmanager: renewed cookie not stored: ${(err as Error).message}`);
+    }
     this.logger.log('BILLmanager cookie session renewed via func=auth');
   }
 

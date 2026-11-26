@@ -155,11 +155,29 @@ export class SyncService implements OnModuleInit {
     const run = await this.syncRuns.createRunning(accountUuid);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), SYNC_TIMEOUT_MS);
+    // Set by the connector's onCredentialsRenewed below; awaited in the finally so a credential
+    // write fired during the run lands before the run is reported done.
+    let renewedCreds: Promise<void> | null = null;
 
     try {
       if (!account.credentialsEnc) throw new Error('Account has no API token');
       const token = this.crypto.decrypt(account.credentialsEnc);
       const connector = this.connectors.create(provider.kind, token);
+      // A connector that renews its own credentials (e.g. billmgr-cookie re-authenticating with
+      // the stored login/password) hands the fresh blob here. Persist it right away — a later
+      // phase failing must not throw away the working session.
+      connector.onCredentialsRenewed = (credentialsJson) => {
+        renewedCreds = this.accounts
+          .update(accountUuid, { credentialsEnc: this.crypto.encrypt(credentialsJson) })
+          .then(() => {
+            this.logger.log(`Sync "${name}" (${accountUuid}): renewed credentials stored`);
+          })
+          .catch((e: unknown) => {
+            this.logger.warn(
+              `Sync "${name}" (${accountUuid}): could not store renewed credentials: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          });
+      };
 
       // Needs no auth (reads the public login page) and runs before fetchAccount: the icon
       // resolves even when the credentials are wrong. Non-fatal; null keeps the stored link.
@@ -232,6 +250,8 @@ export class SyncService implements OnModuleInit {
       return mapSyncRun(failed);
     } finally {
       clearTimeout(timer);
+      // A credential write fired during the run must land before the run is reported done.
+      await renewedCreds;
     }
   }
 

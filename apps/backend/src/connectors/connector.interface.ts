@@ -49,4 +49,12 @@ export interface Connector {
    * services can't discover (e.g. BILLmanager keeps it behind a per-install skin path).
    */
   fetchFaviconUrl?(signal: AbortSignal): Promise<string | null>;
+  /**
+   * Set by the sync when it can persist credentials. Connectors that can renew their own
+   * credentials mid-run (a session cookie minted from a stored login/password) call it with the
+   * whole replacement credentials blob, so the next run starts from the fresh secret instead of
+   * the one the owner pasted. Assigning it is optional for the connector — ignoring it is safe,
+   * the run just renews again next time.
+   */
+  onCredentialsRenewed?: (credentialsJson: string) => void;
 }
