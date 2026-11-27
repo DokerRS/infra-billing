@@ -26,6 +26,18 @@ const SYNC_INTERVAL_NAME = 'provider-sync';
 const DEFAULT_SYNC_INTERVAL_HOURS = 6; // fallback only, until the Settings row exists
 const FETCH_ATTEMPTS = 2; // total tries per phase (1 retry)
 const FETCH_RETRY_DELAY_MS = 2_000;
+const KEEPALIVE_INTERVAL_NAME = 'cookie-keepalive';
+/**
+ * How often a session-cookie account is touched. The autosync runs every few hours, which is far
+ * longer than BILLmanager's idle timeout, so the cookie always expired between runs. 30 min is
+ * well inside the shortest idle window we have seen.
+ */
+const KEEPALIVE_INTERVAL_MS = 30 * 60_000;
+/** The first touch after boot waits this long, to stay out of the way of startup work. */
+const KEEPALIVE_STARTUP_DELAY_MS = 60_000;
+const KEEPALIVE_TIMEOUT_MS = 30_000;
+/** Kinds whose credentials are a panel session that idles out. */
+const KEEPALIVE_KINDS = ['billmgr-cookie'];
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -77,6 +89,7 @@ export class SyncService implements OnModuleInit {
     // Sync cadence is owned by the DB Settings row (editable in the panel), not env.
     const s = await this.settings.find();
     this.applyInterval(s?.syncIntervalHours ?? DEFAULT_SYNC_INTERVAL_HOURS);
+    this.armKeepAlive();
   }
 
   /** Re-schedule the autosync when the interval changes in Settings (takes effect without restart). */
@@ -105,6 +118,73 @@ export class SyncService implements OnModuleInit {
     this.scheduler.addInterval(SYNC_INTERVAL_NAME, interval);
     this.nextRunAt = new Date(Date.now() + this.intervalMs);
     this.logger.log(`Provider autosync every ${hours}h`);
+  }
+
+  /**
+   * Arm the session keep-alive: one cheap authenticated request per cookie account, far more often
+   * than the panel's idle timeout, so the session never has to be renewed (some panels refuse to
+   * renew without a human solving their CAPTCHA). The first pass is delayed so it doesn't pile onto
+   * startup and the boot autosync.
+   */
+  private armKeepAlive(): void {
+    try {
+      this.scheduler.deleteInterval(KEEPALIVE_INTERVAL_NAME);
+    } catch {
+      // not scheduled yet (first run), nothing to clear
+    }
+    const interval = setInterval(() => {
+      void this.keepAliveCookieAccounts();
+    }, KEEPALIVE_INTERVAL_MS);
+    this.scheduler.addInterval(KEEPALIVE_INTERVAL_NAME, interval);
+    setTimeout(() => {
+      void this.keepAliveCookieAccounts();
+    }, KEEPALIVE_STARTUP_DELAY_MS).unref();
+    this.logger.log(`Session keep-alive every ${KEEPALIVE_INTERVAL_MS / 60_000}min`);
+  }
+
+  /**
+   * Touch every enabled session-cookie account. Deliberately separate from a sync: nothing is
+   * written except a renewed cookie, and a dead cookie is only logged — the alerting path is the
+   * sync's, and a heartbeat failure would otherwise notify on every 30-minute tick.
+   */
+  async keepAliveCookieAccounts(): Promise<void> {
+    const accounts = await this.accounts.listByKindsWithCredentials(KEEPALIVE_KINDS);
+    for (const a of accounts) {
+      if (!a.credentialsEnc) continue;
+      const name = accountName(a.provider.name, a.label);
+      try {
+        const token = this.crypto.decrypt(a.credentialsEnc);
+        const connector = this.connectors.create(a.provider.kind, token);
+        if (!connector.keepAlive) continue;
+        // A renewal here must survive the tick, otherwise the next one renews all over again.
+        let renewedCreds: Promise<void> | null = null;
+        connector.onCredentialsRenewed = (credentialsJson) => {
+          renewedCreds = this.accounts
+            .update(a.uuid, { credentialsEnc: this.crypto.encrypt(credentialsJson) })
+            .then(() => {
+              this.logger.log(`Keep-alive "${name}" (${a.uuid}): renewed credentials stored`);
+            })
+            .catch((e: unknown) => {
+              this.logger.warn(
+                `Keep-alive "${name}" (${a.uuid}): could not store renewed credentials: ${e instanceof Error ? e.message : String(e)}`,
+              );
+            });
+        };
+        const state = await connector.keepAlive(AbortSignal.timeout(KEEPALIVE_TIMEOUT_MS));
+        if (state === 'renewed') {
+          this.logger.log(`Keep-alive "${name}" (${a.uuid}): session renewed`);
+        } else if (state === 'dead') {
+          this.logger.warn(
+            `Keep-alive "${name}" (${a.uuid}): the panel no longer knows this session — paste a fresh cookie`,
+          );
+        }
+        await renewedCreds;
+      } catch (e) {
+        this.logger.warn(
+          `Keep-alive "${name}" (${a.uuid}) failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    }
   }
 
   /** Sync every enabled account of a non-manual provider, one by one; failures are isolated. */
@@ -155,11 +235,29 @@ export class SyncService implements OnModuleInit {
     const run = await this.syncRuns.createRunning(accountUuid);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), SYNC_TIMEOUT_MS);
+    // Set by the connector's onCredentialsRenewed below; awaited in the finally so a credential
+    // write fired during the run lands before the run is reported done.
+    let renewedCreds: Promise<void> | null = null;
 
     try {
       if (!account.credentialsEnc) throw new Error('Account has no API token');
       const token = this.crypto.decrypt(account.credentialsEnc);
       const connector = this.connectors.create(provider.kind, token);
+      // A connector that renews its own credentials (e.g. billmgr-cookie re-authenticating with
+      // the stored login/password) hands the fresh blob here. Persist it right away — a later
+      // phase failing must not throw away the working session.
+      connector.onCredentialsRenewed = (credentialsJson) => {
+        renewedCreds = this.accounts
+          .update(accountUuid, { credentialsEnc: this.crypto.encrypt(credentialsJson) })
+          .then(() => {
+            this.logger.log(`Sync "${name}" (${accountUuid}): renewed credentials stored`);
+          })
+          .catch((e: unknown) => {
+            this.logger.warn(
+              `Sync "${name}" (${accountUuid}): could not store renewed credentials: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          });
+      };
 
       // Needs no auth (reads the public login page) and runs before fetchAccount: the icon
       // resolves even when the credentials are wrong. Non-fatal; null keeps the stored link.
@@ -232,6 +330,8 @@ export class SyncService implements OnModuleInit {
       return mapSyncRun(failed);
     } finally {
       clearTimeout(timer);
+      // A credential write fired during the run must land before the run is reported done.
+      await renewedCreds;
     }
   }
 

@@ -51,3 +51,17 @@ export function replaceBillmgrSessionId(cookie: string, id: string): string {
   if (replaced) return parts.join('; ');
   return `${cookie.replace(/;+$/, '').trim()}; billmgrses5=${id}`;
 }
+
+/**
+ * The Cookie header with the session pair removed, keeping everything else (notably the language
+ * pin). A renewal must be sent without the dead session: an install that no longer resolves the
+ * id answers *any* request carrying it — including `func=auth` — with a session error, so the
+ * renewal could never get as far as checking the login.
+ */
+export function withoutBillmgrSessionId(cookie: string): string {
+  return cookie
+    .split(';')
+    .map((p) => p.trim())
+    .filter((p) => p && !/^billmgrses\w*\s*=/i.test(p))
+    .join('; ');
+}

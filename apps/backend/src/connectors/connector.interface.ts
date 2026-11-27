@@ -49,4 +49,21 @@ export interface Connector {
    * services can't discover (e.g. BILLmanager keeps it behind a per-install skin path).
    */
   fetchFaviconUrl?(signal: AbortSignal): Promise<string | null>;
+  /**
+   * Set by the sync when it can persist credentials. Connectors that can renew their own
+   * credentials mid-run (a session cookie minted from a stored login/password) call it with the
+   * whole replacement credentials blob, so the next run starts from the fresh secret instead of
+   * the one the owner pasted. Assigning it is optional for the connector — ignoring it is safe,
+   * the run just renews again next time.
+   */
+  onCredentialsRenewed?: (credentialsJson: string) => void;
+  /**
+   * Optional keep-alive for providers that authenticate with a session the panel drops on idle
+   * (a cookie). The sync runs far less often than that lifetime, so between runs the session is
+   * left to die — and some panels refuse to hand out a new one without a human (CAPTCHA). A
+   * scheduled call to this method, more often than the idle timeout, spends one cheap
+   * authenticated request to keep the session alive. It must not write to the database and must
+   * not throw for a session that is merely refused rights; report the state instead.
+   */
+  keepAlive?(signal: AbortSignal): Promise<'alive' | 'renewed' | 'dead'>;
 }

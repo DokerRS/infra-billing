@@ -46,6 +46,24 @@ export class ProviderAccountsRepository {
     });
   }
 
+  /**
+   * Enabled accounts of the given provider kinds, with their credentials. Used by the cookie
+   * keep-alive, which has to authenticate outside a sync run and so needs the secret itself.
+   */
+  listByKindsWithCredentials(kinds: string[]) {
+    return this.prisma.providerAccount.findMany({
+      where: { isEnabled: true, provider: { kind: { in: kinds } } },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        uuid: true,
+        label: true,
+        providerUuid: true,
+        credentialsEnc: true,
+        provider: { select: { name: true, kind: true } },
+      },
+    });
+  }
+
   findCredentials(uuid: string) {
     return this.prisma.providerAccount.findUnique({
       where: { uuid },

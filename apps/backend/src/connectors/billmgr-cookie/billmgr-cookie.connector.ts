@@ -23,6 +23,7 @@ import { Account, Connector, PaymentData, ServiceData } from '../connector.inter
 import {
   billmgrSessionId,
   replaceBillmgrSessionId,
+  withoutBillmgrSessionId,
   type BillmgrCookieCredentials,
 } from './billmgr-cookie.types';
 
@@ -72,9 +73,8 @@ const ACCOUNT_INFO_FORBIDDEN_MESSAGE =
 // whoami, menu, vds, dedic, vhost, domain, certificate, payment and expense all answered
 // «недостаточно прав»). Each refusal is individually skippable, but together they mean nothing was
 // read — and returning an empty list would make the sync deactivate every service in the account.
-const ALL_FUNCS_REFUSED_MESSAGE =
-  'BILLmanager: the panel refused every service list for this account (no view rights), so nothing ' +
-  'was read. The sync was aborted to keep the services active — ask the hoster for service rights.';
+// The message for that case is built by allFuncsRefusedMessage(), because its advice depends on
+// whether the session could be renewed at all.
 
 /**
  * A session the CGI no longer recognizes. BILLmanager reports it as an auth error on the data
@@ -99,8 +99,9 @@ function isSessionRejected(err: unknown): boolean {
  * Everything after auth (lists, ledgers, sticky filters, menu discovery) is the same CGI API as
  * the API connector, so those helpers are reused from it. The cookie is the whole cost of this
  * trade: it expires. When it does, and login/password were stored, the connector re-authenticates
- * with func=auth (confirming OTP 2FA when a TOTP secret is set) and keeps the new session id for
- * the rest of the run; without credentials it fails with COOKIE_EXPIRED_MESSAGE instead of
+ * with func=auth (confirming OTP 2FA when a TOTP secret is set), keeps the new session id for the
+ * rest of the run, and hands the renewed cookie to the sync via {@link onCredentialsRenewed} so it
+ * replaces the stored one; without credentials it fails with COOKIE_EXPIRED_MESSAGE instead of
  * quietly reporting an empty account.
  */
 export class BillmgrCookieConnector implements Connector {
@@ -109,6 +110,8 @@ export class BillmgrCookieConnector implements Connector {
   private readonly creds: BillmgrCookieCredentials;
   private cookie: string;
   private sessionId: string | null;
+  /** Set by the sync: receives the full credentials JSON with the renewed cookie (see Connector). */
+  onCredentialsRenewed?: (credentialsJson: string) => void;
   private whoamiDoc: BillmgrDoc | null = null; // cached by the auth-verification probe
   // whoami is refused for this account (see ACCOUNT_INFO_FORBIDDEN_MESSAGE). The session itself is
   // fine — BILLmanager answered as an authenticated user — so the rest of the sync must go on.
@@ -116,6 +119,12 @@ export class BillmgrCookieConnector implements Connector {
   // One renewal per run: if a func still comes back rejected after a fresh session, the cookie
   // itself is the problem and re-authenticating again would just loop.
   private refreshAttempted = false;
+  // The renewal succeeded this run (func=auth gave a working session). Refusal messages use it to
+  // tell "the renewed session has no rights" apart from "we could not renew at all".
+  private sessionRenewed = false;
+  // Why the best-effort renewal failed this run, so the sync failure can say it: the panel's answer
+  // to func=auth is the one thing the owner needs in order to fix the credentials.
+  private refreshFailure: string | null = null;
 
   constructor(creds: BillmgrCookieCredentials) {
     this.creds = creds;
@@ -169,6 +178,13 @@ export class BillmgrCookieConnector implements Connector {
   private async ensureSession(signal: AbortSignal): Promise<Record<string, string>> {
     if (!this.sessionId) throw new Error(NO_SESSION_COOKIE_MESSAGE);
     if (!this.whoamiDoc && !this.whoamiForbidden) await this.probe(signal);
+    // Proactive renewal: a BILLmanager session dies on idle, and the sync interval can easily be
+    // longer than that lifetime, so a cookie left alone expires between runs — and once it is
+    // dead, some installs stop accepting a renewal from this server at all. So while the session
+    // is still alive, renew it every run when login/password are stored; the fresh cookie is
+    // handed to the sync through onCredentialsRenewed and the pasted one never has to expire.
+    // A no-op when credentials are absent or a renewal already ran this run (see canRefresh).
+    await this.tryRefresh(signal);
     return this.authParams();
   }
 
@@ -212,13 +228,43 @@ export class BillmgrCookieConnector implements Connector {
   private async verifySession(signal: AbortSignal): Promise<void> {
     const usable = (v: ReturnType<BillmgrCookieConnector['inspect']>) =>
       v.state === 'ok' || (v.state === 'error' && v.privilege);
-    if (usable(this.inspect(await this.raw('menu', signal)))) return;
+    const first = this.inspect(await this.raw('menu', signal));
+    if (usable(first)) {
+      // A privilege-refused menu proves the panel recognized the session — but it is also exactly
+      // how these installs answer once the pasted session id stops resolving, so a refusal alone
+      // cannot tell a dead cookie apart from a rightless account. When login/password are stored
+      // the session is renewed anyway and the fresh one answers for itself; a renewal failure is
+      // only logged, since the current session may still be perfectly usable.
+      if (first.state === 'error' && first.privilege) await this.tryRefresh(signal);
+      return;
+    }
     await this.refresh(signal);
     const after = this.inspect(await this.raw('menu', signal));
     if (usable(after)) return;
     throw new Error(
       after.state === 'error' ? `BILLmanager (menu): ${after.message}` : COOKIE_EXPIRED_MESSAGE,
     );
+  }
+
+  /** Renewal is possible when login/password are stored and this run has not tried yet. */
+  private canRefresh(): boolean {
+    return !this.refreshAttempted && !!this.creds.username && !!this.creds.password;
+  }
+
+  /**
+   * {@link refresh} for the paths where the session may still be usable: a failed renewal is
+   * logged and reported as false instead of failing the sync.
+   */
+  private async tryRefresh(signal: AbortSignal): Promise<boolean> {
+    if (!this.canRefresh()) return false;
+    try {
+      await this.refresh(signal);
+      return true;
+    } catch (err) {
+      this.refreshFailure = (err as Error).message;
+      this.logger.warn(`BILLmanager: session renewal failed: ${this.refreshFailure}`);
+      return false;
+    }
   }
 
   /** Remember that whoami is refused and say it once: the account info is lost, the sync is not. */
@@ -301,8 +347,17 @@ export class BillmgrCookieConnector implements Connector {
     if (!username || !password) throw new Error(COOKIE_EXPIRED_MESSAGE);
 
     const body = new URLSearchParams({ func: 'auth', username, password, out: 'json' });
+    // The login is sent without the session pair. An install that stopped resolving the pasted id
+    // answers *every* request that carries it — func=auth included — with a session error, so
+    // keeping the dead cookie in the header could block the renewal before the login was checked.
+    // Assigned even when nothing but the session was pasted: an empty value still overrides the
+    // instance's default Cookie header, which is the dead session being replaced.
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Cookie: withoutBillmgrSessionId(this.cookie),
+    };
     const { data } = await this.http.post<BillmgrDoc>('', body.toString(), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers,
       signal,
     });
     if (data?.doc?.error) {
@@ -310,10 +365,19 @@ export class BillmgrCookieConnector implements Connector {
       throw new Error(`BILLmanager: func=auth refresh failed (${billmgrError(data.doc.error)})`);
     }
     let id = data?.doc?.auth?.$id ?? data?.doc?.session?.$id;
-    if (!id) throw new Error(COOKIE_EXPIRED_MESSAGE);
+    if (!id) {
+      const verdict = this.inspect(data);
+      throw new Error(
+        verdict.state === 'error'
+          ? `BILLmanager: func=auth refresh failed (${verdict.message})`
+          : 'BILLmanager: func=auth returned no session id — the panel did not accept the stored ' +
+              'login/password, or the base URL does not point at the panel CGI endpoint',
+      );
+    }
 
     this.adoptSession(id);
-    let verdict = this.inspect(await this.raw('whoami', signal));
+    let whoami = await this.raw('whoami', signal);
+    let verdict = this.inspect(whoami);
     if (verdict.state === 'expired') {
       // func=auth returned an id but the session is unconfirmed — 2FA is pending.
       if (!this.creds.totpSecret) {
@@ -324,7 +388,8 @@ export class BillmgrCookieConnector implements Connector {
       }
       id = await this.confirmTotp(id, signal);
       this.adoptSession(id);
-      verdict = this.inspect(await this.raw('whoami', signal));
+      whoami = await this.raw('whoami', signal);
+      verdict = this.inspect(whoami);
       if (verdict.state === 'expired') throw new Error(TOTP_FAILED_MESSAGE);
     }
     if (verdict.state === 'error' && verdict.privilege) {
@@ -332,6 +397,19 @@ export class BillmgrCookieConnector implements Connector {
       this.forbidWhoami(verdict.message);
     } else if (verdict.state === 'error') {
       throw new Error(`BILLmanager (whoami): ${verdict.message}`);
+    } else {
+      // The fresh session may hold rights the old one lost — take its whoami back into use.
+      this.whoamiForbidden = false;
+      this.adoptWhoami(whoami);
+    }
+    this.sessionRenewed = true;
+    // The renewed session is confirmed working — hand the whole credentials blob with the fresh
+    // cookie to the sync so it replaces the one the owner pasted. Best-effort by contract: a
+    // failure here only means the next run renews again, so it must not fail this sync.
+    try {
+      this.onCredentialsRenewed?.(JSON.stringify({ ...this.creds, cookie: this.cookie }));
+    } catch (err) {
+      this.logger.warn(`BILLmanager: renewed cookie not stored: ${(err as Error).message}`);
     }
     this.logger.log('BILLmanager cookie session renewed via func=auth');
   }
@@ -565,38 +643,89 @@ export class BillmgrCookieConnector implements Connector {
     const out: ServiceData[] = [];
     const seen = new Set<string>();
     const itemFuncs = await this.discoverItemFuncs(signal);
+
+    /**
+     * Read the given item funcs into `out`, recording the ones the account was refused. Refused
+     * because it may not view them is different from simply absent from this install — only the
+     * former can mean "the account has services we were not allowed to read".
+     */
+    const readFuncs = async (
+      funcs: { func: string; type: string }[],
+      refused: string[],
+    ): Promise<void> => {
+      for (const { func, type } of funcs) {
+        let rows: Record<string, unknown>[];
+        try {
+          // Paged: an install serves a list one page at a time, and reading only the first page
+          // would hand the sync a partial account — everything left off is then marked inactive.
+          rows = await this.listAll(func, signal);
+        } catch (err) {
+          // Only a func this install does not have is skipped. Any other failure (panel error,
+          // timeout, a filter the account cannot use) must fail the sync: silently dropping the
+          // func's services would deactivate every one of them.
+          if (!isFuncUnavailable(err)) throw err;
+          if (isPrivilegeError(err)) refused.push(func);
+          this.logger.warn(`BILLmanager: func=${func} unavailable, skipped: ${billmgrError(err)}`);
+          continue;
+        }
+        for (const e of rows) {
+          const svc = mapBillmgrService(e, type);
+          if (!svc.externalId || seen.has(svc.externalId)) continue;
+          seen.add(svc.externalId);
+          out.push(svc);
+        }
+      }
+    };
+
     // Refused because the account may not view them, vs. simply absent from this install. Only the
     // former can mean "the account has services we were not allowed to read".
     const refused: string[] = [];
-    for (const { func, type } of itemFuncs) {
-      let rows: Record<string, unknown>[];
-      try {
-        // Paged: an install serves a list one page at a time, and reading only the first page
-        // would hand the sync a partial account — everything left off is then marked inactive.
-        rows = await this.listAll(func, signal);
-      } catch (err) {
-        // Only a func this install does not have is skipped. Any other failure (panel error,
-        // timeout, a filter the account cannot use) must fail the sync: silently dropping the
-        // func's services would deactivate every one of them.
-        if (!isFuncUnavailable(err)) throw err;
-        if (isPrivilegeError(err)) refused.push(func);
-        this.logger.warn(`BILLmanager: func=${func} unavailable, skipped: ${billmgrError(err)}`);
-        continue;
-      }
-      for (const e of rows) {
-        const svc = mapBillmgrService(e, type);
-        if (!svc.externalId || seen.has(svc.externalId)) continue;
-        seen.add(svc.externalId);
-        out.push(svc);
-      }
-    }
+    await readFuncs(itemFuncs, refused);
     // An empty result is honest when the item lists were merely absent from the install, but when
     // every one of them was refused for lack of rights nothing was read at all — and reporting zero
     // services would deactivate every service in the account.
     if (out.length === 0 && itemFuncs.length > 0 && refused.length === itemFuncs.length) {
-      throw new Error(`${ALL_FUNCS_REFUSED_MESSAGE} (refused: ${refused.join(', ')})`);
+      // On these installs a session id the panel no longer resolves answers exactly like a
+      // rightless account — «недостаточно прав» on every func. Before blaming the account, renew
+      // the session once (when a login/password is stored) and re-read the refused funcs.
+      if (await this.tryRefresh(signal)) {
+        const retry = itemFuncs.filter((f) => refused.includes(f.func));
+        refused.length = 0;
+        await readFuncs(retry, refused);
+      }
+    }
+    if (out.length === 0 && itemFuncs.length > 0 && refused.length === itemFuncs.length) {
+      throw new Error(`${this.allFuncsRefusedMessage()} (refused: ${refused.join(', ')})`);
     }
     return out;
+  }
+
+  /**
+   * The two dead ends need different fixes, so they must not share one message: a renewed session
+   * that is still refused means the account itself lacks the rights, while no renewal at all means
+   * there was nothing to renew with. The advice comes first — the notification clamps long text.
+   */
+  private allFuncsRefusedMessage(): string {
+    if (this.sessionRenewed)
+      return (
+        'BILLmanager: a freshly renewed session was refused by every service list, so nothing was ' +
+        'read. The sync was aborted to keep the services active — ask the hoster for view rights.'
+      );
+    if (this.creds.username && this.creds.password) {
+      // The panel's own words are the actionable part, so they go into the message rather than
+      // only the log. Its errors are all prefixed with the connector name, which reads badly
+      // mid-sentence.
+      const why = (this.refreshFailure ?? '').replace(/^BILLmanager:\s*/, '');
+      return (
+        'BILLmanager: every service list was refused and the session could not be renewed' +
+        (why ? `: ${why}` : ' (see the sync log for why)') +
+        '. The sync was aborted to keep the services active.'
+      );
+    }
+    return (
+      'BILLmanager: every service list was refused and the session cannot be renewed — add the panel ' +
+      'login/password in the provider settings, or paste a fresh cookie. Services were kept active.'
+    );
   }
 
   /**
@@ -670,5 +799,32 @@ export class BillmgrCookieConnector implements Connector {
     }
 
     return out;
+  }
+
+  /**
+   * {@link Connector.keepAlive} with one func=menu request: it is the cheapest call any client
+   * role can reach, and even a privilege refusal proves the panel resolved the session — which is
+   * exactly what resets its idle timer. A session the panel no longer resolves is renewed once,
+   * when a login/password is stored (and the fresh cookie goes out through onCredentialsRenewed).
+   */
+  async keepAlive(signal: AbortSignal): Promise<'alive' | 'renewed' | 'dead'> {
+    if (!this.sessionId) return 'dead';
+    try {
+      const verdict = this.inspect(await this.raw('menu', signal));
+      if (verdict.state === 'ok' || (verdict.state === 'error' && verdict.privilege)) {
+        return 'alive';
+      }
+      if (verdict.state === 'error') {
+        // The panel answered as an authenticated user and refused something else, or hit its own
+        // error. Either way it resolved the session, which is what resets the idle timer.
+        this.logger.warn(`BILLmanager keep-alive: func=menu answered ${verdict.message}`);
+        return 'alive';
+      }
+    } catch (err) {
+      this.logger.warn(`BILLmanager keep-alive: func=menu failed: ${(err as Error).message}`);
+      return 'dead';
+    }
+    // The session is gone. Renewal is the only way back, and it needs the stored login/password.
+    return (await this.tryRefresh(signal)) ? 'renewed' : 'dead';
   }
 }
