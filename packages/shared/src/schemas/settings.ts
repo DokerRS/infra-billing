@@ -1,11 +1,6 @@
 import { z } from 'zod';
 import { rateSourceSchema } from '../enums';
-import {
-  currencySchema,
-  isoDateSchema,
-  timeOfDaySchema,
-  timeZoneSchema,
-} from './common';
+import { currencySchema, isoDateSchema, timeOfDaySchema, timeZoneSchema } from './common';
 
 export const settingsSchema = z.object({
   baseCurrency: currencySchema.describe('Base currency for analytics'),
