@@ -17,6 +17,7 @@ import { SettingsRepository } from '@repositories/settings/settings.repository';
 import { SyncRunsRepository } from '@repositories/sync-runs/sync-runs.repository';
 import { CryptoService } from '../crypto/crypto.service';
 import { FaviconsService } from '../favicons/favicons.service';
+import { withProxy } from '@connectors/common/http';
 import { ConnectorFactory } from '@connectors/connector.factory';
 import { PaymentData, ServiceData } from '@connectors/connector.interface';
 import { mapSyncRun } from '@common/mappers';
@@ -150,35 +151,39 @@ export class SyncService implements OnModuleInit {
   async keepAliveCookieAccounts(): Promise<void> {
     const accounts = await this.accounts.listByKindsWithCredentials(KEEPALIVE_KINDS);
     for (const a of accounts) {
-      if (!a.credentialsEnc) continue;
+      const credentialsEnc = a.credentialsEnc;
+      if (!credentialsEnc) continue;
       const name = accountName(a.provider.name, a.label);
       try {
-        const token = this.crypto.decrypt(a.credentialsEnc);
-        const connector = this.connectors.create(a.provider.kind, token);
-        if (!connector.keepAlive) continue;
-        // A renewal here must survive the tick, otherwise the next one renews all over again.
-        let renewedCreds: Promise<void> | null = null;
-        connector.onCredentialsRenewed = (credentialsJson) => {
-          renewedCreds = this.accounts
-            .update(a.uuid, { credentialsEnc: this.crypto.encrypt(credentialsJson) })
-            .then(() => {
-              this.logger.log(`Keep-alive "${name}" (${a.uuid}): renewed credentials stored`);
-            })
-            .catch((e: unknown) => {
-              this.logger.warn(
-                `Keep-alive "${name}" (${a.uuid}): could not store renewed credentials: ${e instanceof Error ? e.message : String(e)}`,
-              );
-            });
-        };
-        const state = await connector.keepAlive(AbortSignal.timeout(KEEPALIVE_TIMEOUT_MS));
-        if (state === 'renewed') {
-          this.logger.log(`Keep-alive "${name}" (${a.uuid}): session renewed`);
-        } else if (state === 'dead') {
-          this.logger.warn(
-            `Keep-alive "${name}" (${a.uuid}): the panel no longer knows this session — paste a fresh cookie`,
-          );
-        }
-        await renewedCreds;
+        // Same rule as a sync: the heartbeat must leave through the account's proxy, if it has one.
+        await withProxy(a.proxyUrl, async () => {
+          const token = this.crypto.decrypt(credentialsEnc);
+          const connector = this.connectors.create(a.provider.kind, token);
+          if (!connector.keepAlive) return;
+          // A renewal here must survive the tick, otherwise the next one renews all over again.
+          let renewedCreds: Promise<void> | null = null;
+          connector.onCredentialsRenewed = (credentialsJson) => {
+            renewedCreds = this.accounts
+              .update(a.uuid, { credentialsEnc: this.crypto.encrypt(credentialsJson) })
+              .then(() => {
+                this.logger.log(`Keep-alive "${name}" (${a.uuid}): renewed credentials stored`);
+              })
+              .catch((e: unknown) => {
+                this.logger.warn(
+                  `Keep-alive "${name}" (${a.uuid}): could not store renewed credentials: ${e instanceof Error ? e.message : String(e)}`,
+                );
+              });
+          };
+          const state = await connector.keepAlive(AbortSignal.timeout(KEEPALIVE_TIMEOUT_MS));
+          if (state === 'renewed') {
+            this.logger.log(`Keep-alive "${name}" (${a.uuid}): session renewed`);
+          } else if (state === 'dead') {
+            this.logger.warn(
+              `Keep-alive "${name}" (${a.uuid}): the panel no longer knows this session — paste a fresh cookie`,
+            );
+          }
+          await renewedCreds;
+        });
       } catch (e) {
         this.logger.warn(
           `Keep-alive "${name}" (${a.uuid}) failed: ${e instanceof Error ? e.message : String(e)}`,
@@ -240,83 +245,86 @@ export class SyncService implements OnModuleInit {
     let renewedCreds: Promise<void> | null = null;
 
     try {
-      if (!account.credentialsEnc) throw new Error('Account has no API token');
-      const token = this.crypto.decrypt(account.credentialsEnc);
-      const connector = this.connectors.create(provider.kind, token);
-      // A connector that renews its own credentials (e.g. billmgr-cookie re-authenticating with
-      // the stored login/password) hands the fresh blob here. Persist it right away — a later
-      // phase failing must not throw away the working session.
-      connector.onCredentialsRenewed = (credentialsJson) => {
-        renewedCreds = this.accounts
-          .update(accountUuid, { credentialsEnc: this.crypto.encrypt(credentialsJson) })
-          .then(() => {
-            this.logger.log(`Sync "${name}" (${accountUuid}): renewed credentials stored`);
-          })
-          .catch((e: unknown) => {
+      // Everything the connector sends during this sync goes through the account's proxy.
+      return await withProxy(account.proxyUrl, async () => {
+        if (!account.credentialsEnc) throw new Error('Account has no API token');
+        const token = this.crypto.decrypt(account.credentialsEnc);
+        const connector = this.connectors.create(provider.kind, token);
+        // A connector that renews its own credentials (e.g. billmgr-cookie re-authenticating with
+        // the stored login/password) hands the fresh blob here. Persist it right away — a later
+        // phase failing must not throw away the working session.
+        connector.onCredentialsRenewed = (credentialsJson) => {
+          renewedCreds = this.accounts
+            .update(accountUuid, { credentialsEnc: this.crypto.encrypt(credentialsJson) })
+            .then(() => {
+              this.logger.log(`Sync "${name}" (${accountUuid}): renewed credentials stored`);
+            })
+            .catch((e: unknown) => {
+              this.logger.warn(
+                `Sync "${name}" (${accountUuid}): could not store renewed credentials: ${e instanceof Error ? e.message : String(e)}`,
+              );
+            });
+        };
+
+        // Needs no auth (reads the public login page) and runs before fetchAccount: the icon
+        // resolves even when the credentials are wrong. Non-fatal; null keeps the stored link.
+        // The icon belongs to the provider, so every account refreshes the same link.
+        if (connector.fetchFaviconUrl) {
+          try {
+            const url = await connector.fetchFaviconUrl(controller.signal);
+            if (url && url !== provider.faviconLink) {
+              await this.providers.updateFaviconLink(providerUuid, url);
+              this.favicons.invalidateProvider(providerUuid);
+            }
+          } catch (e) {
             this.logger.warn(
-              `Sync "${name}" (${accountUuid}): could not store renewed credentials: ${e instanceof Error ? e.message : String(e)}`,
+              `Favicon fetch for "${name}" (${accountUuid}) skipped: ${e instanceof Error ? e.message : String(e)}`,
             );
-          });
-      };
-
-      // Needs no auth (reads the public login page) and runs before fetchAccount: the icon
-      // resolves even when the credentials are wrong. Non-fatal; null keeps the stored link.
-      // The icon belongs to the provider, so every account refreshes the same link.
-      if (connector.fetchFaviconUrl) {
-        try {
-          const url = await connector.fetchFaviconUrl(controller.signal);
-          if (url && url !== provider.faviconLink) {
-            await this.providers.updateFaviconLink(providerUuid, url);
-            this.favicons.invalidateProvider(providerUuid);
           }
-        } catch (e) {
-          this.logger.warn(
-            `Favicon fetch for "${name}" (${accountUuid}) skipped: ${e instanceof Error ? e.message : String(e)}`,
-          );
         }
-      }
 
-      const remote = await this.withRetry(`fetchAccount "${name}"`, controller.signal, () =>
-        connector.fetchAccount(controller.signal),
-      );
-      // Some providers (e.g. Hetzner) expose no account balance → skip balance/snapshot.
-      if (remote.balance !== null) {
-        const balance = remote.balance.toFixed(2);
-        await this.accounts.updateBalance(accountUuid, balance, remote.currency);
-        await this.snapshots.record(accountUuid, balance, remote.currency);
-      }
+        const remote = await this.withRetry(`fetchAccount "${name}"`, controller.signal, () =>
+          connector.fetchAccount(controller.signal),
+        );
+        // Some providers (e.g. Hetzner) expose no account balance → skip balance/snapshot.
+        if (remote.balance !== null) {
+          const balance = remote.balance.toFixed(2);
+          await this.accounts.updateBalance(accountUuid, balance, remote.currency);
+          await this.snapshots.record(accountUuid, balance, remote.currency);
+        }
 
-      const fetched = await this.withRetry(`fetchServices "${name}"`, controller.signal, () =>
-        connector.fetchServices(controller.signal),
-      );
-      const owner = { accountUuid, providerUuid };
-      const servicesFound = await this.upsertServices(owner, fetched, remote.currency);
+        const fetched = await this.withRetry(`fetchServices "${name}"`, controller.signal, () =>
+          connector.fetchServices(controller.signal),
+        );
+        const owner = { accountUuid, providerUuid };
+        const servicesFound = await this.upsertServices(owner, fetched, remote.currency);
 
-      // Import the payment/expense ledger for connectors that expose one (e.g. BILLmanager).
-      // Non-fatal: a ledger failure must not lose the services/balance sync.
-      if (connector.fetchPayments) {
-        try {
-          const payments = await this.withRetry(
-            `fetchPayments "${name}"`,
-            controller.signal,
-            // The narrowing from the `if` guard above does not survive into the closure.
-            () => connector.fetchPayments!(controller.signal),
-          );
-          const imported = await this.upsertPayments(owner, payments, provider.kind);
-          if (imported) {
-            this.logger.log(`Sync "${name}" (${accountUuid}): imported ${imported} payment(s)`);
+        // Import the payment/expense ledger for connectors that expose one (e.g. BILLmanager).
+        // Non-fatal: a ledger failure must not lose the services/balance sync.
+        if (connector.fetchPayments) {
+          try {
+            const payments = await this.withRetry(
+              `fetchPayments "${name}"`,
+              controller.signal,
+              // The narrowing from the `if` guard above does not survive into the closure.
+              () => connector.fetchPayments!(controller.signal),
+            );
+            const imported = await this.upsertPayments(owner, payments, provider.kind);
+            if (imported) {
+              this.logger.log(`Sync "${name}" (${accountUuid}): imported ${imported} payment(s)`);
+            }
+          } catch (e) {
+            this.logger.warn(
+              `Payment import for "${name}" (${accountUuid}) skipped: ${e instanceof Error ? e.message : String(e)}`,
+            );
           }
-        } catch (e) {
-          this.logger.warn(
-            `Payment import for "${name}" (${accountUuid}) skipped: ${e instanceof Error ? e.message : String(e)}`,
-          );
         }
-      }
 
-      await this.accounts.markSynced(accountUuid);
-      const done = await this.syncRuns.markOk(run.id, servicesFound);
-      this.logger.log(`Sync "${name}" (${accountUuid}): ok, ${servicesFound} service(s)`);
-      return mapSyncRun(done);
+        await this.accounts.markSynced(accountUuid);
+        const done = await this.syncRuns.markOk(run.id, servicesFound);
+        this.logger.log(`Sync "${name}" (${accountUuid}): ok, ${servicesFound} service(s)`);
+        return mapSyncRun(done);
+      });
     } catch (e) {
       // On a sync-wide abort axios reports just "canceled" — name the real reason for lastSyncError.
       const message = controller.signal.aborted

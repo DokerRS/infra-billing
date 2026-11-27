@@ -59,6 +59,7 @@ export class ProviderAccountsRepository {
         label: true,
         providerUuid: true,
         credentialsEnc: true,
+        proxyUrl: true,
         provider: { select: { name: true, kind: true } },
       },
     });

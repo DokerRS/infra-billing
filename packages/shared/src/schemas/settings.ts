@@ -58,7 +58,8 @@ export const updateSettingsSchema = z.object({
   // Empty string clears the field.
   telegramChatId: z.string().describe('Telegram chat ID').optional(),
   telegramTopicId: z.string().describe('Telegram topic ID').optional(),
-  // Empty string clears; otherwise an http/https or socks proxy URL.
+  // Empty string clears; otherwise an http/https or socks proxy URL. Wider than
+  // socksProxyUrlSchema on purpose: Telegram also works over an HTTP(S) proxy.
   telegramProxyUrl: z
     .string()
     .regex(/^$|^(socks(4a?|5h?)?|https?):\/\/\S+$/)

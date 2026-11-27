@@ -14,6 +14,8 @@ import type { BillmgrCookieCredentials } from './billmgr-cookie/billmgr-cookie.t
 import { Cent1Connector } from './1cent/1cent.connector';
 import { CloudflareConnector } from './cloudflare/cloudflare.connector';
 import type { CloudflareCredentials } from './cloudflare/cloudflare.types';
+import { AwsConnector } from './aws/aws.connector';
+import type { AwsCredentials } from './aws/aws.types';
 import { Connector } from './connector.interface';
 import { DatapacketConnector } from './datapacket/datapacket.connector';
 import { DoubleServersConnector } from './doubleservers/doubleservers.connector';
@@ -158,6 +160,10 @@ export class ConnectorFactory {
       case 'nodehost':
         // NodeHost secret is the raw API key (single string, sent as the Authorization Bearer header).
         return new NodehostConnector(token);
+      case 'aws':
+        // AWS secret is JSON: { accessKeyId, secretAccessKey } — an IAM user's Cost Explorer read
+        // access; one GetCostAndUsage call per sync feeds services and payments.
+        return new AwsConnector(JSON.parse(token) as AwsCredentials);
       case '1cent':
         // 1Cent secret is the raw API key (single string, sent as the Authorization Bearer header).
         return new Cent1Connector(token);

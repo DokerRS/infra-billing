@@ -1,7 +1,7 @@
 import axios, { type AxiosInstance } from 'axios';
 import Decimal from 'decimal.js';
 import { normalizeCurrency } from '../common/currency';
-import { REQUEST_TIMEOUT_MS } from '../common/http';
+import { createHttp, REQUEST_TIMEOUT_MS } from '../common/http';
 import { Account, Connector, PaymentData, ServiceData } from '../connector.interface';
 import { mapCent1Service, mapCent1Transaction, CENT1_FALLBACK_CURRENCY } from './1cent.mapper';
 import {
@@ -27,7 +27,7 @@ export class Cent1Connector implements Connector {
   private currency = CENT1_FALLBACK_CURRENCY;
 
   constructor(token: string) {
-    this.http = axios.create({
+    this.http = createHttp({
       baseURL: BASE_URL,
       timeout: REQUEST_TIMEOUT_MS,
       maxRedirects: 0,

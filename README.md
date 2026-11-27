@@ -18,15 +18,15 @@
 - **Провайдеры с API:** Timeweb Cloud, Hetzner Cloud, Hostkey (InvAPI), netcup, HostBill,
   ISPsystem BILLmanager, Selectel, 4VPS.SU, Netlen, Beget Cloud, Porkbun, Spaceship, Vultr,
   Linode, Aeza, VDSina, Cloudflare, StormWall, NetAngels, Yandex Cloud, Double Servers, OpenRouter,
-  HostUp, HostVDS / CloudCore, DataPacket, Tube-Hosting, Gcore, NodeHost, 1Cent, OVH, ProCloud,
-  Infomaniak, SKRIME, AstraVPS, Intezio, плюс
+  HostUp, HostVDS / CloudCore, DataPacket, Tube-Hosting, Gcore, NodeHost, AWS, 1Cent, OVH,
+  ProCloud, Infomaniak, SKRIME, AstraVPS, Intezio, плюс
   **ISP BILLmanager (cookie)** — вход по браузерной куке. Плюс **Manual** — провайдеры
   без API ведутся руками.
 - **Автосинк** (по расписанию + кнопкой): баланс + валюта аккаунта, список серверов/услуг, даты
   следующих списаний; история баланса по дням (снапшоты).
 - **Импорт платежей** там, где API отдаёт реестр: пополнения и списания (BILLmanager, Netlen,
-  Vultr, Aeza, VDSina, Double Servers, HostVDS, Tube-Hosting, Gcore, NodeHost, 1Cent, ProCloud,
-  SKRIME, AstraVPS, Intezio), пополнения и счета
+  Vultr, Aeza, VDSina, Double Servers, HostVDS, Tube-Hosting, Gcore, NodeHost, AWS, 1Cent,
+  ProCloud, SKRIME, AstraVPS, Intezio), пополнения и счета
   (Linode), счета и пополнения (OVH), оплаченные счета (HostBill, DataPacket), платежи (HostUp), потребление (Selectel,
   Yandex Cloud, OpenRouter), история биллинга (Cloudflare, best-effort). Ручные платежи — в журнале.
 - **Аналитика:** месячные/годовые расходы, разрезы по провайдеру / стране / типу / валюте, прогноз
@@ -402,7 +402,8 @@ curl -H "Authorization: Bearer ib_…" https://infra-billing/api/providers
 - **Gcore** — постоянный API-токен (портал → Profile → API tokens; заголовок `APIKey`). Деньги
   берутся из биллингового журнала аккаунта (`/billing/client/v1`; документированный
   `/billing/org/v1` — только для реселлеров): баланс, оплаты картой (пополнения) и списания —
-  по записи на позицию биллинга за день, окно 31 день. Услуги: с ролью токена **Administrators** —
+  по записи на позицию биллинга за месяц (UTC) с начала прошлого месяца; текущий месяц
+  пересчитывается каждым синком. Услуги: с ролью токена **Administrators** —
   из Cloud cost report, по услуге на сервер вместе с подключёнными дисками и IP (страна по
   региону); с более узкой ролью (например, Users) Cloud недоступен — тогда по услуге на позицию
   биллинга («Instance … Frankfurt», «Block Storage …»). Цена — расход за последние 7 дней,
@@ -482,6 +483,16 @@ curl -H "Authorization: Bearer ib_…" https://infra-billing/api/providers
   знаком кабинет сам и различает строки; списания привязываются к серверу по его короткому имени
   в описании («Продление сервера pl на 1 мес.»). Пароль сервера не сохраняется. Двухфакторная
   защита входа не поддерживается. Валюта — RUB.
+- **AWS** — access key IAM-пользователя с единственным правом `ce:GetCostAndUsage` (IAM → Users →
+  Create user → inline-политика → Security credentials → Create access key). Cost Explorer нужно один
+  раз включить в Billing and Cost Management, данные появляются в течение 24 часов. API Cost
+  Explorer глобальный (`us-east-1`), но отдаёт расходы по всем регионам, поэтому регион в форме не
+  указывается. Баланса нет: AWS списывает с карты по инвойсу. Услуги — сервисы AWS с ненулевым
+  расходом (SES, SNS, S3…), цена — прошлый полный месяц, а для нового сервиса — текущий месяц,
+  пересчитанный на полный. Расходы (`NetUnblendedCost`, после кредитов и скидок) импортируются как
+  одно списание на сервис за месяц за прошлый и текущий месяц; текущий пересчитывается каждым
+  синком, потому что суммы за день меньше цента при хранении до копеек обнулились бы. Каждый синк —
+  один платный запрос к Cost Explorer API ($0.01, при синке раз в 6 часов это около $1.2 в месяц).
 - **Manual** — без API, всё вводится руками.
 
 ## Telegram-уведомления

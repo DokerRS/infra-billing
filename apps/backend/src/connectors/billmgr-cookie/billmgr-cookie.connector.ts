@@ -1,8 +1,8 @@
 import { Logger } from '@nestjs/common';
-import axios, { type AxiosInstance } from 'axios';
+import type { AxiosInstance } from 'axios';
 import Decimal from 'decimal.js';
 import { normalizeCurrency } from '../common/currency';
-import { REQUEST_TIMEOUT_MS } from '../common/http';
+import { createHttp, REQUEST_TIMEOUT_MS } from '../common/http';
 import { totpCode } from '../common/totp';
 import {
   asArray,
@@ -130,7 +130,7 @@ export class BillmgrCookieConnector implements Connector {
     this.creds = creds;
     this.cookie = creds.cookie.trim();
     this.sessionId = billmgrSessionId(this.cookie);
-    this.http = axios.create({
+    this.http = createHttp({
       baseURL: creds.baseUrl.replace(/\/+$/, ''),
       timeout: REQUEST_TIMEOUT_MS,
       headers: {

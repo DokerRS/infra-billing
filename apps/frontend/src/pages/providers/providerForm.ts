@@ -1,4 +1,4 @@
-import type { Provider, ProviderAccount } from '@infra/shared';
+import { type Provider, type ProviderAccount, socksProxyUrlSchema } from '@infra/shared';
 import type { TFunction } from 'i18next';
 
 /** The hoster identity: what the provider row itself stores. */
@@ -15,6 +15,7 @@ export interface IdentityFormValues {
 export interface AccountFormValues {
   label: string;
   isPostpaid: boolean;
+  proxyUrl: string;
   useCatalogNames: boolean;
   token: string;
   baseUrl: string;
@@ -74,6 +75,7 @@ export const DEFAULT_LOGIN_URLS: Record<string, string> = {
   hostvds: 'https://hostvds.com/control',
   gcore: 'https://portal.gcore.com',
   nodehost: 'https://nodehost.cc',
+  aws: 'https://console.aws.amazon.com/costmanagement',
   '1cent': 'https://bill.1cent.host',
   ovh: 'https://api.eu.ovhcloud.com/console/',
   procloud: 'https://my.procloud.ru',
@@ -94,6 +96,7 @@ export const EMPTY_IDENTITY: IdentityFormValues = {
 export const EMPTY_ACCOUNT: AccountFormValues = {
   label: '',
   isPostpaid: false,
+  proxyUrl: '',
   useCatalogNames: true,
   token: '',
   baseUrl: '',
@@ -127,6 +130,7 @@ export function accountFormFrom(a: ProviderAccount): AccountFormValues {
     ...EMPTY_ACCOUNT,
     label: a.label ?? '',
     isPostpaid: a.isPostpaid,
+    proxyUrl: a.proxyUrl ?? '',
     useCatalogNames: a.useCatalogNames !== false,
     baseUrl: a.baseUrl ?? '',
     username: a.username ?? '',
@@ -214,6 +218,8 @@ export function validateAccountCredentials(
     return t('providers.err.porkbunCreds');
   if (requireCreds && kind === 'spaceship' && !(v.token && v.secretKey))
     return t('providers.err.spaceshipCreds');
+  if (requireCreds && kind === 'aws' && !(v.token && v.secretKey))
+    return t('providers.err.awsCreds');
   if (requireCreds && kind === 'linode' && !v.token) return t('providers.err.linodeToken');
   if (requireCreds && kind === 'aeza' && !v.token) return t('providers.err.aezaToken');
   if (kind === 'hostkey') {
@@ -287,6 +293,10 @@ export function buildCredentials(kind: string, v: AccountFormValues) {
  * Label rule for the account form: required unless the account may stay the unlabelled original,
  * and unique (case-insensitive) among the provider's other accounts. The backend checks it too.
  */
+export function validateProxyUrl(url: string, t: TFunction): string | true {
+  return socksProxyUrlSchema.safeParse(url.trim()).success || t('providers.err.proxyUrlInvalid');
+}
+
 export function validateAccountLabel(
   label: string,
   t: TFunction,

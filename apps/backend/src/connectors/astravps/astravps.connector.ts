@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import axios, { type AxiosInstance } from 'axios';
-import { REQUEST_TIMEOUT_MS } from '../common/http';
+import { createHttp, REQUEST_TIMEOUT_MS } from '../common/http';
 import { Account, Connector, PaymentData, ServiceData } from '../connector.interface';
 import { mapAstravpsPayments, mapAstravpsService, money } from './astravps.mapper';
 import {
@@ -52,7 +52,7 @@ export class AstravpsConnector implements Connector {
       throw new Error('AstraVPS: the cabinet email and password are required');
     }
     this.creds = creds;
-    this.http = axios.create({
+    this.http = createHttp({
       baseURL: ASTRAVPS_PANEL_URL,
       timeout: REQUEST_TIMEOUT_MS,
       maxRedirects: 0,
