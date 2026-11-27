@@ -371,7 +371,7 @@ export class BillmgrCookieConnector implements Connector {
         verdict.state === 'error'
           ? `BILLmanager: func=auth refresh failed (${verdict.message})`
           : 'BILLmanager: func=auth returned no session id — the panel did not accept the stored ' +
-            'login/password, or the base URL does not point at the panel CGI endpoint',
+              'login/password, or the base URL does not point at the panel CGI endpoint',
       );
     }
 
