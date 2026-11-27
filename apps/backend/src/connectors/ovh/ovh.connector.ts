@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import Decimal from 'decimal.js';
 import { z } from 'zod';
 import { normalizeCurrency } from '../common/currency';
-import { REQUEST_TIMEOUT_MS } from '../common/http';
+import { createHttp, REQUEST_TIMEOUT_MS } from '../common/http';
 import { Account, Connector, PaymentData, ServiceData } from '../connector.interface';
 import {
   mapOvhBill,
@@ -81,7 +81,7 @@ export class OvhConnector implements Connector {
     this.applicationKey = creds.applicationKey.trim();
     this.applicationSecret = creds.applicationSecret.trim();
     this.consumerKey = creds.consumerKey.trim();
-    this.http = axios.create({ timeout: REQUEST_TIMEOUT_MS, maxRedirects: 0 });
+    this.http = createHttp({ timeout: REQUEST_TIMEOUT_MS, maxRedirects: 0 });
   }
 
   kind(): string {

@@ -1,6 +1,6 @@
 import axios, { type AxiosInstance } from 'axios';
 import { Logger } from '@nestjs/common';
-import { REQUEST_TIMEOUT_MS } from '../common/http';
+import { createHttp, REQUEST_TIMEOUT_MS } from '../common/http';
 import { Account, Connector, PaymentData, ServiceData } from '../connector.interface';
 import {
   mapInfomaniakInvoice,
@@ -60,7 +60,7 @@ export class InfomaniakConnector implements Connector {
   private readonly externalIdByProductRef = new Map<string, string>();
 
   constructor(token: string) {
-    this.http = axios.create({
+    this.http = createHttp({
       baseURL: BASE_URL,
       timeout: REQUEST_TIMEOUT_MS,
       headers: {

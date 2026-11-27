@@ -151,12 +151,13 @@ export class SyncService implements OnModuleInit {
   async keepAliveCookieAccounts(): Promise<void> {
     const accounts = await this.accounts.listByKindsWithCredentials(KEEPALIVE_KINDS);
     for (const a of accounts) {
-      if (!a.credentialsEnc) continue;
+      const credentialsEnc = a.credentialsEnc;
+      if (!credentialsEnc) continue;
       const name = accountName(a.provider.name, a.label);
       try {
         // Same rule as a sync: the heartbeat must leave through the account's proxy, if it has one.
         await withProxy(a.proxyUrl, async () => {
-          const token = this.crypto.decrypt(a.credentialsEnc);
+          const token = this.crypto.decrypt(credentialsEnc);
           const connector = this.connectors.create(a.provider.kind, token);
           if (!connector.keepAlive) return;
           // A renewal here must survive the tick, otherwise the next one renews all over again.
