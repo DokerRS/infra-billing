@@ -1,4 +1,4 @@
-import { type Provider, type ProviderAccount, socksProxyUrlSchema } from '@infra/shared';
+import { type Provider, type ProviderAccount, proxyUrlSchema } from '@infra/shared';
 import type { TFunction } from 'i18next';
 
 /** The hoster identity: what the provider row itself stores. */
@@ -294,7 +294,7 @@ export function buildCredentials(kind: string, v: AccountFormValues) {
  * and unique (case-insensitive) among the provider's other accounts. The backend checks it too.
  */
 export function validateProxyUrl(url: string, t: TFunction): string | true {
-  return socksProxyUrlSchema.safeParse(url.trim()).success || t('providers.err.proxyUrlInvalid');
+  return proxyUrlSchema.safeParse(url.trim()).success || t('providers.err.proxyUrlInvalid');
 }
 
 export function validateAccountLabel(

@@ -7,7 +7,7 @@ import {
   isoDateSchema,
   moneyAmountSchema,
   moneySchema,
-  socksProxyUrlSchema,
+  proxyUrlSchema,
   uuidSchema,
 } from './common';
 
@@ -25,8 +25,8 @@ export const providerAccountSchema = z.object({
   isEnabled: z.boolean().describe('Sync enabled'),
   // Invoice-billed (postpaid): balance is not prepaid funds, so it is left out of balance warnings.
   isPostpaid: z.boolean().describe('Invoice-billed / postpaid'),
-  // Sync of this account goes through this SOCKS proxy; null = direct.
-  proxyUrl: z.string().describe('SOCKS proxy URL for sync').nullable(),
+  // Sync of this account goes through this HTTP(S)/SOCKS proxy; null = direct.
+  proxyUrl: z.string().describe('Proxy URL (HTTP(S) or SOCKS) for sync').nullable(),
   balance: moneySchema.describe('Account balance').nullable(),
   balanceCurrency: currencySchema.describe('Balance currency').nullable(),
   balanceSyncedAt: isoDateSchema.describe('Balance update time').nullable(),
@@ -137,8 +137,8 @@ const accountLabelSchema = z.string().trim().min(1).max(64);
 
 const accountWritableFields = {
   isPostpaid: z.boolean().describe('Invoice-billed / postpaid').optional(),
-  proxyUrl: socksProxyUrlSchema
-    .describe('SOCKS proxy URL for sync; empty string clears')
+  proxyUrl: proxyUrlSchema
+    .describe('Proxy URL (HTTP(S) or SOCKS) for sync; empty string clears')
     .optional(),
   ...credentialFields,
 };

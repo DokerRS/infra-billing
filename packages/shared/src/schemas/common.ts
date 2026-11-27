@@ -69,5 +69,5 @@ export const moneyAmountSchema = z.object({
 });
 export type MoneyAmount = z.infer<typeof moneyAmountSchema>;
 
-/** SOCKS proxy URL (socks/socks4/socks4a/socks5/socks5h); an empty string clears the field. */
-export const socksProxyUrlSchema = z.string().regex(/^$|^socks(4a?|5h?)?:\/\/\S+$/);
+/** Proxy URL for sync or notifications: HTTP(S) or SOCKS; an empty string clears the field. */
+export const proxyUrlSchema = z.string().regex(/^$|^(socks(4a?|5h?)?|https?):\/\/\S+$/);
